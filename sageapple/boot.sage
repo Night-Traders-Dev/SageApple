@@ -2,7 +2,7 @@
 ## SageApple — Boot ROM (PLAN.md §12)
 ##
 ## Builds the 32KB program ROM image containing a 6502 boot program that
-## writes the startup banner out the console device at $F001, then loops.
+## writes the startup banner out the UART device at $2001, then loops.
 ## Reset vector installed at $FFFC -> $8000.
 #########################################################################
 
@@ -49,8 +49,8 @@ proc build_boot_rom():
     img[0x0005] = 0xF0
     img[0x0006] = 0x07          # BEQ +7  -> halt
     img[0x0007] = 0x8D
-    img[0x0008] = 0x00
-    img[0x0009] = 0x30          # STA $3000
+    img[0x0008] = 0x01
+    img[0x0009] = 0x20          # STA $2001 (UART TX)
     img[0x000A] = 0xE8          # INX
     img[0x000B] = 0x4C
     img[0x000C] = 0x02

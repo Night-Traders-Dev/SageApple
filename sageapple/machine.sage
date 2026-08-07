@@ -5,6 +5,7 @@
 import sage6502.cpu
 import bus.applebus
 import sageapple.boot
+import devices.uart
 
 class SageApple:
     proc init(self):
@@ -19,5 +20,24 @@ class SageApple:
         self.cpu.run()
         self.booted = true
 
+    ## load an arbitrary ROM image (monitor / BASIC) without running
+    proc boot_rom(self, image):
+        self.bus.load_rom(image)
+        self.cpu.reset()
+        self.booted = true
+
     proc console_text(self):
         return self.bus.console_output()
+
+    ## host terminal -> UART RX FIFO
+    proc uart_receive(self, s):
+        return self.bus.uart.receive_str(s)
+
+    proc uart_status(self):
+        return self.bus.uart.status()
+
+    proc tx_text(self):
+        return self.bus.uart.tx_text()
+
+    proc tx_len(self):
+        return self.bus.uart.tx_len()

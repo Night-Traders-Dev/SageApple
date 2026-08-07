@@ -400,8 +400,12 @@ class CPU:
             return 0
         # memory modes
         let addr = self.fetch(mode)
-        let operand = self.read8(addr)
-        self.op_with_addr(id, operand, addr)
+        if id == 3 or id == 4 or id == 5:
+            # pure stores: write without a dummy read (input ports have side effects)
+            self.op_with_addr(id, 0, addr)
+        else:
+            let operand = self.read8(addr)
+            self.op_with_addr(id, operand, addr)
         return 0
 
     proc decode(self, code):

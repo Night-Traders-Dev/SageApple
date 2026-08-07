@@ -3,17 +3,22 @@
 ##
 ##   $0000-$07FF  2KB RAM (writable)
 ##   $0800-$1FFF  reserved (reads 0)
-##   $2000-$3FFF  I/O  (reserved)
+##   $2000-$2001  UART device (M6):
+##                  $2000 status (read): bit0 RX-ready, bit1 TX-ready
+##                  $2001 read: RX data ; write: TX data
+##   $2002-$3FFF  I/O  (reserved)
 ##   $4000-$7FFF  expansion (reserved)
 ##   $8000-$FFFF  32KB Program ROM (read-only to the 6502)
-##   $F000-$F0FF  console I/O window (M5/M6 UART device)
+##   $F000-$F0FF  legacy console alias (M5) kept readable on writes
 #########################################################################
+
+import devices.uart
 
 class AppleBus:
     proc init(self):
+        self.uart = uart.UART()
         self.ram = []
         self.rom = []
-        self.console = []
         var i = 0
         while i < 2048:
             push(self.ram, 0x00)
@@ -27,18 +32,26 @@ class AppleBus:
         addr = addr & 0xFFFF
         if addr < 0x0800:
             return self.ram[addr]
+        if addr == 0x2000:
+            return self.uart.status()
+        if addr == 0x2001:
+            return self.uart.rx_read()
         if addr >= 0x8000 and addr <= 0xFFFF:
             return self.rom[addr - 0x8000]
         return 0x00
 
     proc write8(self, addr, value):
         addr = addr & 0xFFFF
+        value = value & 0xFF
         if addr < 0x0800:
-            self.ram[addr] = value & 0xFF
-        elif addr >= 0x8000 and addr <= 0xFFFF:
+            self.ram[addr] = value
+            return
+        if addr >= 0x8000 and addr <= 0xFFFF:
             return                      # ROM read-only
+        if addr == 0x2001:
+            self.uart.tx_write(value)   # UART TX data
         elif addr == 0x3000:
-            push(self.console, value & 0xFF)  # I/O TX
+            self.uart.tx_write(value)   # legacy console alias
 
     proc read16(self, addr):
         return self.read8(addr) | (self.read8(addr + 1) << 8)
@@ -54,24 +67,6 @@ class AppleBus:
     proc write_ram(self, addr, value):
         self.ram[addr] = value & 0xFF
 
+    ## 6502 -> UART transmitted bytes, rendered to a string
     proc console_output(self):
-        var s = ""
-        var i = 0
-        let n = len(self.console)
-        while i < n:
-            let b = self.console[i]
-            if b == 13:
-                s = s + "\r"
-            elif b == 10:
-                s = s + "\n"
-            else:
-                s = s + _chr(b)
-            i = i + 1
-        return s
-
-proc _chr(v):
-    let ch = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
-    if v >= 32 and v < 127:
-        let idx = v - 32
-        return ch[idx]
-    return " "
+        return self.uart.tx_text()

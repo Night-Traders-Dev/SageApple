@@ -48,3 +48,15 @@
 - `sageapple/boot.sage` — 6502 boot ROM emitting the banner then looping.
 - `sageapple/machine.sage` — Apple machine composition + `power_on()`.
 - `tests/boot/test_boot.sage` — banner/prompt boot check (6 checks).
+
+### Milestone 6 — UART Device & Terminal
+- `devices/uart.sage` — 6502 UART device ($2000 status, $2001 RX/TX) with
+  RX FIFO and TX read-back for the host terminal.
+- `bus/applebus.sage` — hosts the UART device in the $2000-$2001 I/O window.
+- `sageapple/echo.sage` — 6502 echo-terminal ROM (poll status, echo RX->TX).
+- `sageapple/terminal.sage` — host terminal bridging scripted input via the
+  device UART and reading back the 6502's transmitted text.
+- `sage6502/cpu.sage` — store ops no longer emit a dummy read (an RX I/O
+  port must not be consumed by `STA`).
+- Banner now transmitted over the real UART path ($2001).
+- `tests/boot/test_uart.sage` — device + 6502 echo checks (8 checks).
