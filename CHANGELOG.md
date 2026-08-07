@@ -5,3 +5,18 @@
 ### Milestone 1 — Repository
 - Repository scaffold created.
 - PLAN.md, README.md, LICENSE added.
+
+### Milestone 2 — Sage6502 CPU core
+- `sage6502/registers.sage` — A/X/Y/PC/SP registers.
+- `sage6502/flags.sage` — processor status (NV-BDIZC) with byte get/set.
+- `sage6502/cpu.sage` — table-driven NMOS 6502 interpreter: full canonical
+  opcode table, all addressing modes, load/store, transfers, stack,
+  ADC/SBC, logical, compare, inc/dec, shifts/rotates, branches,
+  JMP/JSR/RTS, BRK/RTI/NOP, and flag instructions. Reset vector + stack.
+
+### Milestone 4 — Memory Bus
+- `bus/bus.sage` — 64 KB virtual byte-array bus with read8/write8/read16/load.
+
+### Milestone 3 — 6502 Validation
+- `tests/6502/test_cpu.sage` — smoke suite (8 asserts): loads, STX/STY,
+  ADC (carry clear), SBC + branch, stack, and flags.

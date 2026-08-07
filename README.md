@@ -10,4 +10,11 @@ See [`PLAN.md`](PLAN.md) for the full architecture, phases, and milestones.
 
 ## Status
 
-Under construction — Milestone 1 (repository scaffold).
+Under construction. Milestone 1 (repository) **done**. In progress:
+**Sage6502 CPU core + memory bus + validation suite** (Milestones 2–4).
+
+Run the CPU test suite:
+
+```sh
+sage tests/6502/test_cpu.sage
+```
