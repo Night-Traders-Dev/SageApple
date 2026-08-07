@@ -1,0 +1,6 @@
+# Build / generated artifacts
+*.hex
+*.bin
+*.svm
+*.sgrv
+build/
