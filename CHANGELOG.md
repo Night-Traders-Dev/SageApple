@@ -41,3 +41,10 @@
 - `tools/avr_boot.sage` — Sage -> AVR opcodes -> Intel HEX for a UART boot;
   writes `build/boot.hex`.
 - `tools/hex_dump.sage`, `tools/rom_builder.sage` — plan tools.
+
+### Milestone 5 — SageApple Boot
+- `bus/applebus.sage` — memory map bus: 2KB RAM, 32KB ROM ($8000), I/O console
+  TX at $3000 (PLAN.md §11).
+- `sageapple/boot.sage` — 6502 boot ROM emitting the banner then looping.
+- `sageapple/machine.sage` — Apple machine composition + `power_on()`.
+- `tests/boot/test_boot.sage` — banner/prompt boot check (6 checks).
