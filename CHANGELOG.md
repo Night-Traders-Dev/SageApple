@@ -72,3 +72,12 @@
 - `tests/compiler/test_asm6502.sage` — assembler encoding + emulator
   execution checks (11 checks).
 - `tests/boot/test_monitor.sage` — full monitor ROM pass (10 checks).
+
+### Milestone 8 — BASIC
+- `basic/basic.sage` — native Tiny BASIC interpreter: tokenizer, integer
+  expression evaluator (precedence, parens, unary minus), comparisons,
+  PRINT/LET/GOTO/IF-THEN/FOR-NEXT-STEP/INPUT/LIST/RUN/NEW/END/REM,
+  single-letter variables, numbered program store with replace + sorted
+  insert. Input via `feed(ch)`; scripted INPUT via an input queue.
+- `tests/basic/test_basic.sage` — immediate PRINT, variables, loops,
+  conditionals, STEP, INPUT, LIST/NEW checks (17 checks).
