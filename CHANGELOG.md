@@ -60,3 +60,15 @@
   port must not be consumed by `STA`).
 - Banner now transmitted over the real UART path ($2001).
 - `tests/boot/test_uart.sage` — device + 6502 echo checks (8 checks).
+
+### Milestone 7 — 6502 Monitor (partial)
+- `compiler/asm6502.sage` — two-pass 6502 assembler: opcode table (full NMOS
+  set), `.org`/`.byte`, labels with cross-instruction resolution, `#<`/`#>`
+  low/high immediates, REL branch offsets, and proper accumulator (`LSR A`)
+  encoding.
+- `sageapple/monitor.sage` — 6502 command monitor ROM: `help`, `dump`,
+  `peek`, `poke`, `regs`, `run`, `reset` over UART. Long dispatch reaches
+  its handlers via absolute `JMP` trampolines (beyond ±127-byte branches).
+- `tests/compiler/test_asm6502.sage` — assembler encoding + emulator
+  execution checks (11 checks).
+- `tests/boot/test_monitor.sage` — full monitor ROM pass (10 checks).

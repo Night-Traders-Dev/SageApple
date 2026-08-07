@@ -225,10 +225,15 @@ proc parse_operand(tok):
     tok = strip(tok)
     if tok == "":
         return ["imp", 0, 0, ""]
-    if tok == "A":
+    if tok == "A" or tok == "a":
         return ["acc", 0, 0, ""]
     if s_pre(tok, 1) == "#":
-        return ["imm", 0, hext(slice(tok,1,len(tok))), ""]
+        let inner = strip(slice(tok,1,len(tok)))
+        if s_pre(inner, 1) == "<":
+            return ["low", 1, 0, strip(slice(inner,1,len(inner)))]
+        if s_pre(inner, 1) == ">":
+            return ["high", 1, 0, strip(slice(inner,1,len(inner)))]
+        return ["imm", 0, hext(inner), ""]
     if s_pre(tok, 1) == "(":
         let inner = strip(slice(tok,1,len(tok)))
         if s_end(inner, "),Y"):
@@ -296,7 +301,7 @@ class Assembler:
             return 2
         if m == "imp" or m == "acc":
             return 1
-        if m == "imm" or m == "zp" or m == "zpx" or m == "zpy" or m == "indzpx" or m == "indzp_y":
+        if m == "imm" or m == "zp" or m == "zpx" or m == "zpy" or m == "indzpx" or m == "indzp_y" or m == "low" or m == "high":
             return 2
         return 3
 
@@ -338,8 +343,15 @@ class Assembler:
         if m == "imp" or m == "acc":
             self.emit(opcode(mn, m))
             return
-        self.emit(opcode(mn, m))
-        if m == "imm" or m == "zp" or m == "zpx" or m == "zpy" or m == "indzpx" or m == "indzp_y":
+        var mo = m
+        if mo == "low" or mo == "high":
+            mo = "imm"
+        self.emit(opcode(mn, mo))
+        if m == "low":
+            self.emit(self.lookup(sym) & 0xFF)
+        elif m == "high":
+            self.emit((self.lookup(sym) >> 8) & 0xFF)
+        elif m == "imm" or m == "zp" or m == "zpx" or m == "zpy" or m == "indzpx" or m == "indzp_y":
             if is_sym == 1:
                 self.emit(self.lookup(sym) & 0xFF)
             else:
@@ -405,7 +417,7 @@ class Assembler:
             return 2
         if m == "imp" or m == "acc":
             return 1
-        if m == "imm" or m == "zp" or m == "zpx" or m == "zpy" or m == "indzpx" or m == "indzp_y":
+        if m == "imm" or m == "zp" or m == "zpx" or m == "zpy" or m == "indzpx" or m == "indzp_y" or m == "low" or m == "high":
             return 2
         return 3
 
@@ -421,7 +433,7 @@ proc parse_line(raw0):
         return ["empty", nil]
     if s_is(raw, ".byte"):
         var vals = []
-        for p in strip(slice(raw,5,len(raw))).split(","):
+        for p in split(strip(slice(raw,5,len(raw))), ","):
             push(vals, hext(p))
         return ["bytes", vals]
     if s_is(raw, "org"):
