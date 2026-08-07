@@ -81,3 +81,20 @@
   insert. Input via `feed(ch)`; scripted INPUT via an input queue.
 - `tests/basic/test_basic.sage` — immediate PRINT, variables, loops,
   conditionals, STEP, INPUT, LIST/NEW checks (17 checks).
+
+### Milestone 9 — 6502 Compiler Backend
+- `compiler/backend.sage` — lowers M8 BASIC to standalone 6502 machine
+  code: AST parsing (numbers, variables A-Z, `+ - * / ( )`, unary minus,
+  relational conditions), instruction selection with value in A, register
+  allocation onto zero page (variables $20-$3E, temps $7C/$7E), statements
+  compiled to 6502: PRINT (expr/string/blank with `;`), LET, GOTO,
+  IF/THEN/GOTO, END.  Runtime appended: UART output, decimal printing,
+  string printing, 8x8 multiply, 8-bit divide.
+- `compiler/asm6502.sage` — used as assembler+linker for the emitted source
+  (labels resolve across user code and runtime), yielding a binary image
+  loadable into RAM.
+- `tests/compiler/test_backend.sage` — compiles BASIC, loads the image at
+  $0300 behind a reset-boot stub, runs on the emulator, checks UART output
+  (20 checks).
+
+### Milestone 10 — Graphics
