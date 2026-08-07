@@ -32,3 +32,12 @@
   IRQ service + RTI return. 13 checks.
 - `tests/6502/test_cpu.sage` — smoke suite. 8 checks.
 - Combined suite: 21/21 passing.
+
+### Milestone 4 — AVR Target
+- `avr/avr.ld` — ATmega328P memory layout (32KB flash / 2KB SRAM / 1KB EEPROM).
+- `avr/start.S` — stack init, `.bss` clear, `.data` copy, jump to `main()`.
+- `avr/main.c` — AVR runtime: UART init + banner (M5-7 wire the emulator in).
+- `avr/Makefile` + `avr/README.md` — avr-gcc build + avrdude flashing workflow.
+- `tools/avr_boot.sage` — Sage -> AVR opcodes -> Intel HEX for a UART boot;
+  writes `build/boot.hex`.
+- `tools/hex_dump.sage`, `tools/rom_builder.sage` — plan tools.
