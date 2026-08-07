@@ -219,6 +219,27 @@ proc _table():
 
 var _OPCODES = _table()
 
+## canonical NMOS 6502 base cycle counts (256 entries)
+proc _load_cycles():
+    let raw = "7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,3,3,5,0,1,2,4,0,3,4,6,0,2,2,0,0,4,6,0,2,4,0,0,0,4,7,0,4,0,0,0,0,3,5,0,4,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,0,0,0,0,0,3,5,0,4,2,2,0,5,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,6,7,0,0,0,0,0,0,3,3,3,0,2,0,2,0,4,4,4,0,2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,2,6,0,0,3,3,5,0,2,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,0,0,3,3,5,0,2,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,5,0,0,4,6,0,2,4,0,0,3,6,7,0,0,4,6,0,2,4,0,0,0,6,7,0"
+    let parts = split(raw, ",")
+    let t = []
+    var i = 0
+    while i < 256:
+        push(t, _atoi(parts[i]))
+        i = i + 1
+    return t
+
+proc _atoi(s):
+    var v = 0
+    for i in range(len(s)):
+        let ch = s[i]
+        if ch >= "0" and ch <= "9":
+            v = v * 10 + (ord(ch) - 48)
+    return v
+
+var _CYCLES = _load_cycles()
+
 class CPU:
     proc init(self, bus):
         self.bus = bus
@@ -226,6 +247,8 @@ class CPU:
         self.status = flags.Status()
         self.halted = false
         self.cycles = 0
+        self.irq_pending = false
+        self.nmi_pending = false
 
     proc read8(self, addr):
         return self.bus.read8(addr)
@@ -250,17 +273,38 @@ class CPU:
     proc step(self):
         if self.halted:
             return
-        self.cycles = self.cycles + 1
         let code = self.read8(self.regs.pc)
         self.regs.pc = (self.regs.pc + 1) & 0xFFFF
         let d = self.decode(code)
-        self.exec(d[0], d[1])
+        let extra = self.exec(d[0], d[1])
+        self.cycles = self.cycles + _CYCLES[code] + extra
+        # service interrupts between instructions
+        if self.nmi_pending:
+            self.nmi_pending = false
+            self.serve_interrupt(0xFFFA)
+        elif self.irq_pending and self.status.I() == 0:
+            self.irq_pending = false
+            self.serve_interrupt(0xFFFE)
 
     proc run(self):
         var n = 0
         while self.halted == false and n < 1000000:
             self.step()
             n = n + 1
+
+    # ---- legacy/soft interrupt interface (plan API) ----
+    proc interrupt(self):
+        self.irq_pending = true
+
+    proc nmi(self):
+        self.nmi_pending = true
+
+    proc serve_interrupt(self, vector):
+        self.push16(self.regs.pc)
+        self.push(self.status.get() | 0x30)
+        self.status.set_I(1)
+        self.regs.pc = self.read16(vector)
+        self.cycles = self.cycles + 7
 
     proc push(self, value):
         self.write8(0x0100 | self.regs.sp, value & 0xFF)
@@ -342,23 +386,23 @@ class CPU:
             let operand = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
             self.op1(id, operand)
-            return
+            return 0
         # accumulator shifts operate on register A
         if mode == 9:
             self.shift(id, self.regs.a, nil)
-            return
+            return 0
         # branch
         if mode == 11:
-            self.branch(id)
-            return
+            return self.branch(id)
         # implied: nothing to fetch
         if mode == 12:
             self.op0(id)
-            return
+            return 0
         # memory modes
         let addr = self.fetch(mode)
         let operand = self.read8(addr)
         self.op_with_addr(id, operand, addr)
+        return 0
 
     proc decode(self, code):
         return _OPCODES[code]
@@ -620,3 +664,5 @@ class CPU:
                 take = true
         if take:
             self.regs.pc = (self.regs.pc + off) & 0xFFFF
+            return 1
+        return 0

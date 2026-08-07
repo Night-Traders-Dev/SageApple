@@ -20,3 +20,8 @@
 ### Milestone 3 — 6502 Validation
 - `tests/6502/test_cpu.sage` — smoke suite (8 asserts): loads, STX/STY,
   ADC (carry clear), SBC + branch, stack, and flags.
+
+### Milestone 2 — Sage6502 CPU core (complete)
+- IRQ (`$FFFE`) and NMI (`$FFFA`) servicing between instructions.
+- Canonical base cycle counts + branch-taken penalty; IRQ/NMI service charge.
+- `interrupt()` / `nmi()` soft latches matching the plan's CPU API.
