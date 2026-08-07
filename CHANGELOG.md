@@ -25,3 +25,10 @@
 - IRQ (`$FFFE`) and NMI (`$FFFA`) servicing between instructions.
 - Canonical base cycle counts + branch-taken penalty; IRQ/NMI service charge.
 - `interrupt()` / `nmi()` soft latches matching the plan's CPU API.
+
+### Milestone 3 — 6502 Validation (complete)
+- `tests/6502/test_opcodes.sage` — addressing modes (abs,X / abs,Y, zero page,X
+  wraparound), stack push/pull, JSR/RTS round-trip, BEQ/BNE taken paths, and
+  IRQ service + RTI return. 13 checks.
+- `tests/6502/test_cpu.sage` — smoke suite. 8 checks.
+- Combined suite: 21/21 passing.
