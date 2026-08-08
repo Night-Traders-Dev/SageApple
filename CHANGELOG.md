@@ -132,3 +132,28 @@
   and persistence across a second filesystem instance (26 checks).
 
 ### Milestone 12 — Standalone SageApple
+- `devices/speaker.sage` — PWM speaker model: `tone(freq, duration)`
+  frequency control (0 = silence, not recorded), `beep()`, tone
+  transcript/spin for testing.
+- `bus/applebus.sage` — speaker port `$2007`: write frequency (0 =
+  silence), read 0x00.
+- `basic/basic.sage` — `BEEP [freq]` statement (default 1000 Hz) driving
+  the attached speaker; PRINT `;` suppression now applies only to a
+  statement-final semicolon (fixes `PRINT "COUNT "; I` dropping the
+  newline).
+- `apps/catalog.sage` — app catalog: BASIC programs (HELLO / COUNTER /
+  BEEP) installable to the filesystem, plus the compiled 6502 demo
+  (MACHINE1: UART \"6502 APP OK\" + speaker tone) built with the
+  assembler.
+- `sageapple/os.sage` — standalone OS: power-on banner (CPU/flash/uart/
+  display checks), menu commands (`help dir apps info basic monitor
+  run save del beep splash`), BASIC program editing → save → load →
+  RUN persistence, 6502 application loading into RAM ($0300) with the
+  ROM boot stub + reset vector, and display splash.
+- `tests/machine/test_speaker.sage` — speaker device, BASIC (BEEP),
+  and a compiled 6502 program driving the port (12 checks).
+- `tests/machine/test_os.sage` — definition of done: power-on banner,
+  monitor reachable from the OS, app installs, end-to-end RUN of the
+  Hello app/counter, save/load round-trips, BEEP app, and the 6502
+  MACHINE1 app over UART (23 checks).
+- Full suite: 14 modules, 211 checks passing.

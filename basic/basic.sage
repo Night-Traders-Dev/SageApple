@@ -63,6 +63,7 @@ class Basic:
         self.out = ""
         self.buf = ""
         self.running = 0
+        self.speaker = nil
         var i = 0
         while i < 26:
             self.vars["abcdefghijklmnopqrstuvwxyz"[i]] = 0
@@ -245,6 +246,9 @@ class Basic:
             return ["next"]
         if w == "END" or w == "STOP":
             return ["end"]
+        if w == "BEEP":
+            self.exec_beep(toks, pos + 1)
+            return ["next"]
         if w == "REM":
             return ["next"]
         return self.exec_let(toks, pos, ci)
@@ -319,6 +323,14 @@ class Basic:
         self.loops = newl
         return ["next"]
 
+    ## BEEP [freq] — tone on the attached speaker (default 1000 Hz)
+    proc exec_beep(self, toks, pos):
+        var freq = 1000
+        if pos < len(toks) and toks[pos][0] == "num":
+            freq = toks[pos][1]
+        if self.speaker != nil:
+            self.speaker.tone(freq, 100)
+
     proc do_print(self, toks, pos):
         var nline = 1
         while pos < len(toks):
@@ -327,7 +339,8 @@ class Basic:
                 self.out = self.out + t[1]
                 pos = pos + 1
             elif t[0] == "sym" and t[1] == ";":
-                nline = 0
+                if pos + 1 == len(toks):
+                    nline = 0
                 pos = pos + 1
             elif t[0] == "sym" and t[1] == ",":
                 self.out = self.out + "    "

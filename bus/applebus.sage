@@ -13,7 +13,8 @@
 ##   $2005-$2006  SPI flash controller (M11):
 ##                  $2005 write: transfer byte to flash; read: last reply
 ##                  $2006 write: CS level (bit0) ; read: CS level
-##   $2007-$3FFF  I/O  (reserved)
+##   $2007        PWM speaker (M12): write frequency (0 = silence)
+##   $2008-$3FFF  I/O  (reserved)
 ##   $4000-$7FFF  expansion (reserved)
 ##   $8000-$FFFF  32KB Program ROM (read-only to the 6502)
 ##   $F000-$F0FF  legacy console alias (M5) kept readable on writes
@@ -22,6 +23,7 @@
 import devices.uart
 import devices.display
 import devices.flash
+import devices.speaker
 import sageapple.storage
 
 class AppleBus:
@@ -31,6 +33,7 @@ class AppleBus:
         self.flashdev = flash.Flash(65536)
         self.flash = flash.FlashSPI(self.flashdev)
         self.storage = storage.Storage(self.flashdev)
+        self.speaker = speaker.Speaker()
         self.ram = []
         self.rom = []
         var i = 0
@@ -56,6 +59,8 @@ class AppleBus:
             return self.flash.resp
         if addr == 0x2006:
             return self.flash.cs_level()
+        if addr == 0x2007:
+            return 0x00
         if addr >= 0x8000 and addr <= 0xFFFF:
             return self.rom[addr - 0x8000]
         return 0x00
@@ -80,6 +85,8 @@ class AppleBus:
             self.flash.byte(value)      # flash: transfer byte
         elif addr == 0x2006:
             self.flash.csl(value & 1)   # flash: CS level
+        elif addr == 0x2007:
+            self.speaker.tone(value, 100)   # speaker: frequency
         elif addr == 0x3000:
             self.uart.tx_write(value)   # legacy console alias
 
