@@ -1,15 +1,14 @@
-# SageApple — ATmega328P linker script (avr-gcc)
-# Flash 32 KB, SRAM 2 KB, EEPROM 1 KB (per PLAN.md §5).
+
+
 
 OUTPUT_FORMAT("elf32-avr")
 OUTPUT_ARCH(avr:5)
-MCU = atmega328p
 
 MEMORY
 {
   text   (rx)   : ORIGIN = 0x000000, LENGTH = 32K
-  data   (rw!x) : ORIGIN = 0x800100, LENGTH = 2K
-  eeprom (rw!)  : ORIGIN = 0x810000, LENGTH = 1K
+  data   (rw) : ORIGIN = 0x800100, LENGTH = 2K
+  eeprom (rw)  : ORIGIN = 0x810000, LENGTH = 1K
   fusebits       (rw) : ORIGIN = 0, LENGTH = 1
   lockbits       (rw) : ORIGIN = 0, LENGTH = 1
   signature      (rw) : ORIGIN = 0, LENGTH = 1
@@ -24,7 +23,7 @@ SECTIONS
     KEEP(*(.vector))
   } > text
 
-  .text 0 :
+  .text 0x4 :
   {
     *(.progmem*)
     KEEP(*(.init0))
@@ -72,4 +71,13 @@ SECTIONS
 
   _heap_start = ALIGN(2);
   _heap_end   = 0x800100 + 2K;
+
+  __data_start     = _data_start;
+  __data_end       = _data_end;
+  __data_load_start = LOADADDR(.data);
+  __data_load_end   = LOADADDR(.data) + SIZEOF(.data);
+  __bss_start  = _bss_start;
+  __bss_end    = _bss_end;
+  __heap_start = _heap_start;
+  __heap_end   = _heap_end;
 }
