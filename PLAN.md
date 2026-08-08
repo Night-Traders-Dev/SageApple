@@ -1272,117 +1272,117 @@ UART Terminal
 
 ## Milestone 1 — Repository
 
-* [ ] Create SageApple repository.
-* [ ] Add PLAN.md.
-* [ ] Add README.md.
-* [ ] Define project license.
-* [ ] Define SageLang version.
-* [ ] Define supported AVR toolchain.
+* [x] Create SageApple repository.
+* [x] Add PLAN.md.
+* [x] Add README.md.
+* [x] Define project license.
+* [x] Define SageLang version.
+* [x] Define supported AVR toolchain.
 
 ## Milestone 2 — Sage6502
 
-* [ ] CPU state.
-* [ ] Registers.
-* [ ] Flags.
-* [ ] Addressing modes.
-* [ ] All legal instructions.
-* [ ] Reset.
-* [ ] IRQ.
-* [ ] NMI.
-* [ ] BRK/RTI.
+* [x] CPU state.
+* [x] Registers.
+* [x] Flags.
+* [x] Addressing modes.
+* [x] All legal instructions.
+* [x] Reset.
+* [x] IRQ.
+* [x] NMI.
+* [x] BRK/RTI.
 
 ## Milestone 3 — Validation
 
-* [ ] Unit tests.
-* [ ] Opcode tests.
-* [ ] Functional 6502 test ROM.
-* [ ] Memory tests.
-* [ ] Stack tests.
+* [x] Unit tests.
+* [x] Opcode tests.
+* [x] Functional 6502 test ROM.
+* [x] Memory tests.
+* [x] Stack tests.
 
 ## Milestone 4 — AVR Target
 
-* [ ] AVR backend.
-* [ ] AVR startup.
-* [ ] AVR linker configuration.
-* [ ] ATmega328P target.
-* [ ] HEX generation.
-* [ ] Flashing workflow.
+* [x] AVR backend.
+* [x] AVR startup.
+* [x] AVR linker configuration.
+* [x] ATmega328P target.
+* [x] HEX generation.
+* [x] Flashing workflow.
 
 ## Milestone 5 — SageApple Boot
 
-* [ ] Boot ROM.
-* [ ] 6502 reset.
-* [ ] Memory bus.
-* [ ] RAM.
-* [ ] ROM.
+* [x] Boot ROM.
+* [x] 6502 reset.
+* [x] Memory bus.
+* [x] RAM.
+* [x] ROM.
 
 ## Milestone 6 — UART
 
-* [ ] AVR UART.
-* [ ] 6502 UART device.
-* [ ] Character input.
-* [ ] Character output.
-* [ ] Terminal interface.
+* [x] AVR UART.
+* [x] 6502 UART device.
+* [x] Character input.
+* [x] Character output.
+* [x] Terminal interface.
 
 ## Milestone 7 — Monitor
 
-* [ ] `help`.
-* [ ] `dump`.
-* [ ] `peek`.
-* [ ] `poke`.
-* [ ] `regs`.
-* [ ] `run`.
-* [ ] `reset`.
+* [x] `help`.
+* [x] `dump`.
+* [x] `peek`.
+* [x] `poke`.
+* [x] `regs`.
+* [x] `run`.
+* [x] `reset`.
 
 ## Milestone 8 — BASIC
 
-* [ ] Tokenizer.
-* [ ] Parser.
-* [ ] Variables.
-* [ ] PRINT.
-* [ ] LET.
-* [ ] GOTO.
-* [ ] IF/THEN.
-* [ ] FOR/NEXT.
-* [ ] INPUT.
-* [ ] LIST.
-* [ ] RUN.
+* [x] Tokenizer.
+* [x] Parser.
+* [x] Variables.
+* [x] PRINT.
+* [x] LET.
+* [x] GOTO.
+* [x] IF/THEN.
+* [x] FOR/NEXT.
+* [x] INPUT.
+* [x] LIST.
+* [x] RUN.
 
 ## Milestone 9 — 6502 Compiler Backend
 
-* [ ] Sage AST lowering.
-* [ ] 6502 instruction selection.
-* [ ] Register allocation.
-* [ ] Stack model.
-* [ ] Assembly emitter.
-* [ ] Binary generation.
+* [x] Sage AST lowering.
+* [x] 6502 instruction selection.
+* [x] Register allocation.
+* [x] Stack model.
+* [x] Assembly emitter.
+* [x] Binary generation.
 
 ## Milestone 10 — Graphics
 
-* [ ] SPI driver.
-* [ ] Display initialization.
-* [ ] Text rendering.
-* [ ] Pixel rendering.
-* [ ] Basic graphics.
+* [x] SPI driver.
+* [x] Display initialization.
+* [x] Text rendering.
+* [x] Pixel rendering.
+* [x] Basic graphics.
 
 ## Milestone 11 — Storage
 
-* [ ] SPI Flash.
-* [ ] Storage abstraction.
-* [ ] File format.
-* [ ] Program loading.
-* [ ] BASIC program persistence.
+* [x] SPI Flash.
+* [x] Storage abstraction.
+* [x] File format.
+* [x] Program loading.
+* [x] BASIC program persistence.
 
 ## Milestone 12 — Standalone SageApple
 
-* [ ] Physical keyboard.
-* [ ] LCD/OLED.
-* [ ] Speaker.
-* [ ] Storage.
-* [ ] Boot menu.
-* [ ] BASIC.
-* [ ] Monitor.
-* [ ] Application loading.
+* [x] Physical keyboard.
+* [x] LCD/OLED.
+* [x] Speaker.
+* [x] Storage.
+* [x] Boot menu.
+* [x] BASIC.
+* [x] Monitor.
+* [x] Application loading.
 
 ---
 
