@@ -98,3 +98,20 @@
   (20 checks).
 
 ### Milestone 10 — Graphics
+- `devices/spi.sage` — bit-level SPI master driver (SCK per bit, MOSI/MISO,
+  CS framing) with an attachable slave protocol (spi_cs/spi_clk/spi_frame).
+- `devices/display.sage` — SSD1306-style 128x64 monochrome OLED controller:
+  framebuffer lives on the controller (1024 bytes), byte-level protocol
+  decode of column/page/display-on commands, parameter commands, and
+  addressing windows.
+- `sageapple/graphics.sage` — Video API: pixel / Bresenham line / 5x7
+  glyphs / text rendering on top of the SPI display.
+- `bus/applebus.sage` — display ports: `$2002` command (DC low), `$2003`
+  data (DC high), `$2004` read status / write reset.
+- `tests/display/test_spi.sage` — SPI loopback, framing, CS, counters
+  (9 checks).
+- `tests/display/test_display.sage` — protocol decode, addressing windows,
+  pixel/line/text rendering, plus a compiled 6502 program driving the
+  display through the bus ports (29 checks).
+
+### Milestone 11 — Storage

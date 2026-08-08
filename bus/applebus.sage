@@ -6,17 +6,23 @@
 ##   $2000-$2001  UART device (M6):
 ##                  $2000 status (read): bit0 RX-ready, bit1 TX-ready
 ##                  $2001 read: RX data ; write: TX data
-##   $2002-$3FFF  I/O  (reserved)
+##   $2002-$2004  SPI display controller (M10):
+##                  $2002 write: display command (DC low)
+##                  $2003 write: display data   (DC high)
+##                  $2004 read:  status (bit7 set = ready); write: reset
+##   $2005-$3FFF  I/O  (reserved)
 ##   $4000-$7FFF  expansion (reserved)
 ##   $8000-$FFFF  32KB Program ROM (read-only to the 6502)
 ##   $F000-$F0FF  legacy console alias (M5) kept readable on writes
 #########################################################################
 
 import devices.uart
+import devices.display
 
 class AppleBus:
     proc init(self):
         self.uart = uart.UART()
+        self.gpu = display.DisplaySPI()
         self.ram = []
         self.rom = []
         var i = 0
@@ -36,6 +42,8 @@ class AppleBus:
             return self.uart.status()
         if addr == 0x2001:
             return self.uart.rx_read()
+        if addr == 0x2004:
+            return self.gpu.status()
         if addr >= 0x8000 and addr <= 0xFFFF:
             return self.rom[addr - 0x8000]
         return 0x00
@@ -50,6 +58,12 @@ class AppleBus:
             return                      # ROM read-only
         if addr == 0x2001:
             self.uart.tx_write(value)   # UART TX data
+        elif addr == 0x2002:
+            self.gpu.cmd(value)         # display command
+        elif addr == 0x2003:
+            self.gpu.dat(value)         # display data
+        elif addr == 0x2004:
+            self.gpu.reset()            # display reset
         elif addr == 0x3000:
             self.uart.tx_write(value)   # legacy console alias
 
