@@ -55,3 +55,7 @@ while steps < 1000 and cp.halted == false:
     steps = steps + 1
 check(cp.regs.a == 0x1F, "A = $1F after CLC/LDA/ADC")
 check(b.ram[0x0300] == 0x1F, "STA $0300 stored $1F")
+print("")
+print("Results:", passes, "passed,", failures, "failed")
+if failures == 0:
+    print("ALL OK")

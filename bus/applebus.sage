@@ -10,7 +10,10 @@
 ##                  $2002 write: display command (DC low)
 ##                  $2003 write: display data   (DC high)
 ##                  $2004 read:  status (bit7 set = ready); write: reset
-##   $2005-$3FFF  I/O  (reserved)
+##   $2005-$2006  SPI flash controller (M11):
+##                  $2005 write: transfer byte to flash; read: last reply
+##                  $2006 write: CS level (bit0) ; read: CS level
+##   $2007-$3FFF  I/O  (reserved)
 ##   $4000-$7FFF  expansion (reserved)
 ##   $8000-$FFFF  32KB Program ROM (read-only to the 6502)
 ##   $F000-$F0FF  legacy console alias (M5) kept readable on writes
@@ -18,11 +21,16 @@
 
 import devices.uart
 import devices.display
+import devices.flash
+import sageapple.storage
 
 class AppleBus:
     proc init(self):
         self.uart = uart.UART()
         self.gpu = display.DisplaySPI()
+        self.flashdev = flash.Flash(65536)
+        self.flash = flash.FlashSPI(self.flashdev)
+        self.storage = storage.Storage(self.flashdev)
         self.ram = []
         self.rom = []
         var i = 0
@@ -44,6 +52,10 @@ class AppleBus:
             return self.uart.rx_read()
         if addr == 0x2004:
             return self.gpu.status()
+        if addr == 0x2005:
+            return self.flash.resp
+        if addr == 0x2006:
+            return self.flash.cs_level()
         if addr >= 0x8000 and addr <= 0xFFFF:
             return self.rom[addr - 0x8000]
         return 0x00
@@ -64,6 +76,10 @@ class AppleBus:
             self.gpu.dat(value)         # display data
         elif addr == 0x2004:
             self.gpu.reset()            # display reset
+        elif addr == 0x2005:
+            self.flash.byte(value)      # flash: transfer byte
+        elif addr == 0x2006:
+            self.flash.csl(value & 1)   # flash: CS level
         elif addr == 0x3000:
             self.uart.tx_write(value)   # legacy console alias
 

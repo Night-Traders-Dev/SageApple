@@ -115,3 +115,20 @@
   display through the bus ports (29 checks).
 
 ### Milestone 11 — Storage
+- `devices/flash.sage` — SPI NOR flash model (64KB, JEDEC EF 40 15):
+  write-enable protection, status register, page program, 4K sector
+  erase, read streaming; `FlashSPI` controller on bus ports `$2005`
+  (byte transfer) / `$2006` (CS level).
+- `sageapple/storage.sage` — SAGEFS-6502 minimal filesystem on the
+  flash: 16-entry directory (name/size/start), first-fit contiguous
+  allocation, format/save/load/delete/list, text files (CRLF-joined
+  lines) for BASIC program persistence.
+- `bus/applebus.sage` — flash ports `$2005`/`$2006`.
+- `tests/storage/test_flash.sage` — chip protocol (id, WEL, program,
+  erase, read stream) plus a compiled 6502 program programming and
+  reading the flash through the bus ports (19 checks).
+- `tests/storage/test_fs.sage` — filesystem round-trips, directory
+  limits, overwrite/delete, BASIC program save → load → RUN equality
+  and persistence across a second filesystem instance (26 checks).
+
+### Milestone 12 — Standalone SageApple
