@@ -1,0 +1,18 @@
+SageApple MonitorMON> help
+Commands: help dump peek poke regs run resetMON> regs
+A=00 X=FD Y=2C SP=FD P=37
+MON> peek 0000
+0000: 00
+MON> poke 0000 42
+
+MON> peek 0000
+0000: 42
+MON> dump 0030 0030
+MON> xyz
+?
+
+MON> run
+no user program
+MON> reset
+SageApple MonitorMON> help
+Commands: help dump peek poke regs run resetMON> 

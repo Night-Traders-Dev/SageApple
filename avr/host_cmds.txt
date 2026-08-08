@@ -1,0 +1,10 @@
+help
+regs
+peek 0000
+poke 0000 42
+peek 0000
+dump 0030 0030
+xyz
+run
+reset
+help

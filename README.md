@@ -4,21 +4,43 @@
 
 An **Apple II-inspired retrocomputer** implemented primarily in **pure
 SageLang**, targeting an inexpensive **ATmega328P / Arduino UNO R3-compatible**
-board (the $1.05 US-UK-buy variety).
+board.
 
 At its core is a reusable **Sage6502 CPU core** — a table-driven NMOS 6502
-interpreter — plus a **SageLang-to-6502 compiler backend**. The machine is
-complete end to end: it boots, talks to a terminal, runs a monitor, executes
-Tiny BASIC programs, drives an SPI OLED display, stores programs on SPI NOR
-flash through a filesystem, beeps a speaker, and loads 6502 applications from
-a standalone OS console — all verified by an emulated test suite.
+interpreter — plus a **SageLang-to-6502 compiler backend**, a complete
+SageApple machine (bus, devices, Tiny BASIC, monitor, OS, filesystem), and
+a **real ATmega328P port** where the core is re-implemented in C and runs on
+the chip over a physical UART.
 
-See [`PLAN.md`](PLAN.md) for the full architecture, phases, and milestones.
+```
+                    ┌───────────────────────────────┐
+                    │  apps/catalog            apps │
+                    ├───────────────────────────────┤
+                    │  sageapple/   OS · filesystem │
+                    │               graphics ·      │
+                    │               monitor         │
+                    ├───────────────────────────────┤
+                    │  basic/   Tiny BASIC          │
+                    ├───────────────────────────────┤
+                    │  compiler/ asm6502 + backend  │
+                    ├───────────────────────────────┤
+                    │  bus/ + devices/              │
+                    ├───────────────────────────────┤
+                    │  sage6502/  CPU core          │
+                    ├───────────────────────────────┤
+                    │  avr/   C runtime + C port    │
+                    └───────────────────────────────┘
+```
+
+- All layers run under the host `sage` interpreter (full emulation) **or**
+  on the real 328P (C core + monitor ROM in PROGMEM).
+- The same terminal session — `help dump peek poke regs run reset` — is a
+  byte-exact transcript check between host and chip.
 
 ## Status
 
-**Complete** — Milestones 1–12 are done; the repo is clean and green:
-**14 test modules, 211 checks passing.**
+**Complete** — all milestones done; the machine runs both emulated and on
+hardware:
 
 | Milestone | Deliverable |
 |---|---|
@@ -26,131 +48,124 @@ See [`PLAN.md`](PLAN.md) for the full architecture, phases, and milestones.
 | M2 | Sage6502 CPU core (instruction table, addressing modes, IRQ/NMI, BRK/RTI) |
 | M3 | CPU + opcode validation suites |
 | M4 | AVR target (linker, startup, UART runtime, make/avrdude flow) |
-| M5 | Boot ROM, reset vector, memory bus, 2KB RAM + 32KB ROM |
+| M5 | Boot ROM, reset vector, memory bus, RAM + ROM |
 | M6 | UART device on `$2000-$2001`, terminal I/O |
 | M7 | 6502 monitor (`help dump peek poke regs run reset`) |
 | M8 | Tiny BASIC (PRINT/LET/GOTO/IF/FOR/NEXT/INPUT/LIST/RUN/NEW) |
-| M9 | 6502 compiler backend (expressions, PRINT/LET/GOTO/IF/END) |
+| M9 | 6502 compiler backend (expressions, PRINT/LET/GOTO/IF/DIV) |
 | M10 | SPI SSD1306-style OLED (pixel/line/5x7 text) |
-| M11 | SPI NOR flash + SAGEFS-6502 filesystem (BASIC program persistence) |
+| M11 | SPI NOR flash + SAGEFS-6502 filesystem (BASIC persistence) |
 | M12 | Standalone OS: speaker, boot menu, catalog apps, monitor interop |
+| M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 
-The definition of done — the canonical demo:
-
-```text
-SageApple Computer
-------------------
-
-Sage6502 CPU ........ OK
-Memory .............. 2048 bytes
-ROM ................. OK
-UART ................ OK
-
-SageApple OS 0.1
-
-> run hello
-
-HELLO FROM SAGEAPPLE
-RUNNING ON ATMEGA328P
-
->
-```
+Host suites: **14 modules, 211 checks passing** — plus the AVR host
+equivalence test (`make host-test`).
 
 ## Architecture
 
+Two execution backends, one machine:
+
 ```
-                          SageLang
-                             │
-            ┌────────────────┴────────────────┐
-            │                                 │
-            ▼                                 ▼
-    SageApple machine                SageLang -> 6502
-    (this repo)                     compiler backend
-            │                        (compiler/)
-            ├── sage6502/    CPU, registers, flags
-            ├── bus/         AppleBus memory map + devices
-            ├── devices/     UART, SPI, display, flash, speaker
-            ├── basic/       Tiny BASIC interpreter
-            ├── apps/        catalog (HELLO / COUNTER / BEEP / MACHINE1)
-            ├── sageapple/   OS, filesystem, graphics
-            └── avr/         ATmega328P host runtime
+SageLang machine            AVR machine
+sageapple/machine.sage      avr/main.c + avr/sage6502.c
+        │                           │
+        ▼                           ▼
+  bus/applebus.sage           avr/bus.c (SRAM/PROGMEM)
+        │                           │
+  sage6502/cpu.sage            avr/sage6502.c (same core)
 ```
 
-### Memory / I/O map
+The opcode table, ROM, and the canonical terminal session are all
+*generated* from the Sage sources (`tools/rom_gen.sage`,
+`tools/gen_table.sage`) so the C port cannot drift.
+
+## Memory / I/O map
 
 | Range | Device |
 |---|---|
-| `$0000-$07FF` | 2KB RAM (writable) |
+| `$0000-$07FF` | 2 KB RAM (host); `$0000-$03FF` 1 KB on the AVR |
 | `$2000-$2001` | UART (status/RX/TX) |
 | `$2002-$2004` | SPI display controller (command/data/status+reset) |
 | `$2005-$2006` | SPI flash controller (byte transfer / CS level) |
-| `$2007` | PWM speaker (write frequency, 0 = silence) |
-| `$8000-$FFFF` | 32KB Program ROM (read-only) |
+| `$2007` | PWM-speaker frequency |
+| `$3000` | legacy console TX alias |
+| `$8000-$FFFF` | 32 KB Program ROM (read-only) |
 
-## Quick start (host emulation)
+## Documentation
 
-Both the machine and its suites run directly under the SageLang interpreter
-(no emulator binary needed) — from the repo root:
+Component docs live in [docs/](docs/architecture.md):
+
+| doc | topic |
+|---|---|
+| architecture | layers, design decisions, execution models |
+| sage6502 | CPU core, tables, registers, flags |
+| bus | bus.sage + AppleBus memory map |
+| devices | UART · SPI · OLED · NOR flash · speaker |
+| basic | Tiny BASIC interpreter |
+| compiler | asm6502 assembler + BASIC→6502 backend |
+| os | OS console · monitor · SAGEFS · graphics |
+| avr | hardware port, build, flash, on-board session |
+| tools | oracle/ROM/table generators |
+| tests | validation suites and how to run them |
+
+## Quick start (host)
 
 ```sh
-sage tools/avr_boot.sage        # assemble + emit build/boot.bin / boot.hex
-sage tests/machine/test_os.sage # full end-to-end OS check (23 checks)
+sage tools/avr_boot.sage         # assemble + emit build/boot.bin & boot.hex
+sage tests/machine/test_os.sage  # full end-to-end OS check (23 checks)
 ```
 
-## Test suite
+All 14 suites run the same way; see [docs/tests.md](docs/tests.md).
 
-| Module | Checks |
-|---|---|
-| `tests/6502/test_cpu.sage` | 8 |
-| `tests/6502/test_opcodes.sage` | 13 |
-| `tests/compiler/test_asm6502.sage` | 11 |
-| `tests/compiler/test_backend.sage` | 20 |
-| `tests/boot/test_boot.sage` | 6 |
-| `tests/boot/test_uart.sage` | 8 |
-| `tests/boot/test_monitor.sage` | 10 |
-| `tests/basic/test_basic.sage` | 17 |
-| `tests/display/test_spi.sage` | 9 |
-| `tests/display/test_display.sage` | 29 |
-| `tests/storage/test_flash.sage` | 19 |
-| `tests/storage/test_fs.sage` | 26 |
-| `tests/machine/test_speaker.sage` | 12 |
-| `tests/machine/test_os.sage` | 23 |
-| **Total** | **211** |
+## Hardware
 
-Each prints its own `Results: N passed, 0 failed` footer and `ALL OK` on
-success.
-
-## Hardware (ATmega328P / Arduino UNO)
-
-The AVR runtime is a thin C/assembler shim: it boots the ATmega328P, drives
-the UART, and hosts the SageLang emulation core. See the
-[``avr/README.md``](avr/README.md) workflow:
+See [docs/avr.md](docs/avr.md) — the short version:
 
 ```sh
 cd avr
-make                                   # sageapple.hex
-make flash DEVICE=/dev/ttyUSB0 BAUD=115200 PROTO=arduino   # serial loader
-# or after a USBasp:
-avrdude -p atmega328p -c usbasp -B 3 -U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m
+make                                    # sageapple.hex (the 6502 emulator)
+make flash DEVICE=/dev/ttyUSB0 BAUD=115200 PROTO=arduino
+make host-test                          # host equivalence oracle
+screen /dev/ttyUSB0 9600               # talk to the monitor on the UNO
 ```
 
-Terminal: `screen /dev/ttyUSB0 9600` (see `avr/README.md` for defaults).
+The board boots straight into the monitor over the physical UART:
+
+```
+SageApple MonitorMON> help
+Commands: help dump peek poke regs run reset
+MON> regs
+A=00 X=FD Y=11 SP=FD P=68
+```
+
+Fuses (USBasp): `-U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m`
+(16 MHz external crystal).
+
+## Test suite
+
+Run any module standalone, or all 14:
+
+```sh
+for t in tests/*/*.sage; do sage "$t"; done   # 211 checks, all OK
+```
 
 ## Repository layout
 
 ```
-apps/catalog.sage      # installable apps (HELLO / COUNTER / BEEP / MACHINE1)
-avr/                   # AVR linker, startup, C runtime, Makefile
-basic/basic.sage       # Tiny BASIC interpreter
-bus/                   # applebus.sage (memory map) + bus.sage helpers
-compiler/              # asm6502.sage (assembler) + backend.sage (AST -> 6502)
-devices/               # uart, spi, display, flash, speaker models
-sageapple/             # os.sage (console), storage.sage (SAGEFS), graphics.sage
-sage6502/              # CPU core, registers, flags
-tests/                 # 14 suites, 211 checks
-tools/                 # hex_dump, rom_builder, avr_boot host helpers
+apps/          installable apps (HELLO / COUNTER / BEEP / MACHINE1)
+avr/           AVR runtime + C port of the core (make / avrdude)
+basic/         Tiny BASIC interpreter
+bus/           applebus.sage (memory map) + flat bus
+compiler/      asm6502 (assembler) + backend (BASIC -> 6502)
+devices/       UART, SPI, display, flash, speaker models
+docs/          component documentation
+sageapple/     os.sage, monitor.sage, storage.sage (SAGEFS), graphics.sage
+sage6502/      CPU core (cpu.sage, registers, IRQ/NMI)
+tools/         oracle/ROM/table generators
+tests/         14 suites, 211 checks
 ```
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [LICENSE](LICENSE); full history in [CHANGELOG.md](CHANGELOG.md),
+design in [PLAN.md](PLAN.md).

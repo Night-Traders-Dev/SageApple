@@ -22,6 +22,8 @@ _start:
     out SPH, r16
 
     ; clear .bss
+    ldi r30, lo8(_bss_start)
+    ldi r31, hi8(_bss_start)
     ldi r16, lo8(_bss_end)
     ldi r17, hi8(_bss_end)
     ldi r18, lo8(_bss_start)

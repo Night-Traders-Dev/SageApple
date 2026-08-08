@@ -21,7 +21,7 @@ CFLAGS   = -mmcu=$(MC) -DF_CPU=$(B_CPU) -Os -Wall -Wextra -std=gnu11 -fno-strict
 ASFLAGS  = -mmcu=$(MC)
 LDFLAGS  = -mmcu=$(MC) -T avr.ld
 
-OBJS     = main.o start.o
+OBJS     = main.o start.o sage6502.o bus.o rom_avr.o
 ELF      = sageapple.elf
 
 all: $(ELF) sageapple.hex
@@ -42,6 +42,16 @@ sageapple.hex: $(ELF)
 
 build-sage-boot:
 	sage ../tools/avr_boot.sage
+
+rom:
+	sage ../tools/rom_gen.sage
+
+host: rom_host.c host_cmds.txt
+	gcc -O2 -DHOST -o host_test sage6502.c bus.c rom_host.c host_uart.c host_main.c
+
+host-test: host
+	./host_test host_cmds.txt > host_out.txt
+	diff host_out.txt host_expected.txt && echo "HOST EQUIVALENCE OK"
 
 flash: sageapple.hex
 	$(AVRDUDE) -p $(MC) -c $(PROTO) -P $(DEVICE) -b $(BAUD) \

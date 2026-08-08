@@ -3,4 +3,9 @@
 *.bin
 *.svm
 *.sgrv
+*.o
+*.elf
+*.lss
 build/
+avr/host_test
+avr/host_out.txt
