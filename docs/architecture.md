@@ -26,10 +26,11 @@ interpreter (fully emulated, used by the test suites) or on the real chip
  |                           |  COUNTER, BEEP, MACHINE1    |
  +---------------------------+-----------------------------+
  |  sageapple/               |  OS console, SAGEFS        |
- |                           |  filesystem, graphics,     |
- |                           |  monitor, boot/terminal    |
+ |                           |  filesystem, DOS 3.3,      |
+ |                           |  graphics, monitor,        |
+ |                           |  boot/terminal             |
  +---------------------------+-----------------------------+
- |  basic/                   |  Tiny BASIC interpreter     |
+ |  basic/                   |  Applesoft BASIC interpreter     |
  +---------------------------+-----------------------------+
  |  compiler/                |  asm6502 two-pass assembler |
  |                           |  + BASIC -> 6502 backend    |
@@ -56,12 +57,12 @@ AVR chip.
 | [docs/sage6502.md](sage6502.md) | CPU core, registers, flags, instruction set, timing |
 | [docs/bus.md](bus.md) | flat bus, AppleBus memory map, I/O ports |
 | [docs/devices.md](devices.md) | UART, SPI, OLED display, NOR flash, speaker |
-| [docs/basic.md](basic.md) | Tiny BASIC interpreter |
+| [docs/basic.md](basic.md) | Applesoft BASIC interpreter |
 | [docs/compiler.md](compiler.md) | 6502 assembler + SageLang-to-6502 backend |
 | [docs/os.md](os.md) | OS console, monitor, filesystem, graphics, boot |
 | [docs/avr.md](avr.md) | ATmega328P port, C runtime, flashing |
 | [docs/tools.md](tools.md) | host-side tools (hex, ROM, table generation) |
-| [docs/tests.md](tests.md) | the 14 validation suites |
+| [docs/tests.md](tests.md) | the 15 validation suites |
 
 ## Key design decisions
 
@@ -119,7 +120,7 @@ the host budget belongs to the emulator state; see [docs/avr.md](avr.md).)
 | `bus/bus.sage` | 64 KB flat byte-array bus |
 | `bus/applebus.sage` | the AppleBus: RAM + ROM + memory-mapped devices |
 | `devices/*.sage` | UART, SPI master, OLED display, NOR flash, speaker models |
-| `basic/basic.sage` | Tiny BASIC interpreter (PRINT/LET/GOTO/IF/FOR/INPUT...) |
+| `basic/basic.sage` | Applesoft BASIC interpreter (PRINT/LET/GOTO/IF/FOR/INPUT/GOSUB/DEF FN/READ/DATA...) |
 | `compiler/asm6502.sage` | two-pass 6502 assembler |
 | `compiler/backend.sage` | BASIC -> 6502 compiler with runtime |
 | `sageapple/*.sage` | OS, monitor, storage/SAGEFS, graphics, machine, terminal, echo, boot |

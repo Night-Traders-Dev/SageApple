@@ -544,3 +544,273 @@ proc pad32k(img):
     out[0x7FFC] = 0x00
     out[0x7FFD] = 0x80
     return out
+#########################################################################
+## Host-side interactive Monitor (Apple II style)
+##
+##   * 300.30F       forward dump
+##   * 30F-300       backward dump
+##   * 300:41 42     store bytes
+##   * 300G          go
+##   * 300J / 300C   jsr/call
+##   * R             run vector
+##   * S             step  (T = trace until BRK)
+##   * 300L          disassemble 20 lines
+##   * N / I / F     display mode
+##   * E             exit to BASIC
+#########################################################################
+
+import sage6502.cpu
+
+let _MNEMS = ["LDA","LDX","LDY","STA","STX","STY","TAX","TXA","TAY","TYA","TSX","TXS","PHA","PHP","PLA","PLP","ADC","SBC","AND","ORA","EOR","BIT","CMP","CPX","CPY","INC","DEC","INX","INY","DEX","DEY","ASL","LSR","ROL","ROR","BCC","BCS","BEQ","BMI","BNE","BPL","BVC","BVS","JMP","JSR","RTS","BRK","RTI","NOP","CLC","CLD","CLI","CLV","SEC","SED","SEI"]
+
+proc _mh2(v):
+    return "0123456789ABCDEF"[(v >> 4) & 0xF] + "0123456789ABCDEF"[v & 0xF]
+
+proc _mh4(v):
+    return _mh2((v >> 8) & 0xFF) + _mh2(v & 0xFF)
+
+proc _mhexv(c):
+    if c >= "0" and c <= "9":
+        return ord(c) - 48
+    if c >= "A" and c <= "F":
+        return ord(c) - 55
+    return -1
+
+class Monitor:
+    proc init(self, m):
+        self.m = m
+        self.out = ""
+        self.last_addr = 0
+        self.run_vec = 0x0300
+        self.dmode = "N"
+        self._GO_GUARD = 1000000
+
+    ## ---- register line ----
+    proc regs_line(self):
+        let c = self.m.cpu
+        return "A=" + _mh2(c.regs.a) + " X=" + _mh2(c.regs.x) + " Y=" + _mh2(c.regs.y) + " P=" + _mh2(c.status.get()) + " SP=" + _mh2(c.regs.sp) + "\r\n"
+
+    ## ---- memory display ----
+    proc line8(self, base):
+        var s = _mh4(base) + "- "
+        var k = 0
+        while k < 8:
+            s = s + _mh2(self.m.bus.read8(base + k)) + " "
+            k = k + 1
+        return s
+
+    proc dump(self, a1, a2, fwd):
+        var prev = -1
+        if fwd:
+            var base = a1
+            while base <= a2:
+                if (base & 0xF00) != prev:
+                    self.out = self.out + "\r\n"
+                    prev = base & 0xF00
+                self.out = self.out + self.line8(base) + "\r\n"
+                base = base + 8
+            self.last_addr = a2
+        else:
+            var base = a1 - 7
+            while base > a2 and base >= 0:
+                if (base & 0xF00) != prev:
+                    self.out = self.out + "\r\n"
+                    prev = base & 0xF00
+                self.out = self.out + self.line8(base) + "\r\n"
+                base = base - 8
+            self.last_addr = a1
+        return ""
+
+    ## ---- store ----
+    proc store(self, addr, rest):
+        var cur = ""
+        var a = addr
+        var i = 0
+        while i < len(rest):
+            let hv = _mhexv(rest[i])
+            if hv >= 0:
+                cur = cur + rest[i]
+                if len(cur) == 2:
+                    self.m.bus.write8(a & 0xFFFF, _mhexv(cur[0]) * 16 + _mhexv(cur[1]))
+                    a = a + 1
+                    cur = ""
+            i = i + 1
+        self.last_addr = a - 1
+        return ""
+
+    ## ---- execution ----
+    proc _run_to(self, addr, stop_pc):
+        let c = self.m.cpu
+        c.regs.set_pc(addr)
+        var n = 0
+        while n < self._GO_GUARD and c.halted == false:
+            if stop_pc >= 0 and c.regs.get_pc() == stop_pc:
+                break
+            c.step()
+            n = n + 1
+        self.out = self.out + self.regs_line()
+        return ""
+
+    proc go(self, addr):
+        return self._run_to(addr, -1)
+
+    proc jsr(self, addr):
+        let c = self.m.cpu
+        var sp = c.regs.sp
+        self.m.bus.write8(0x0100 + sp, 0x00)
+        sp = (sp - 1) & 0xFF
+        self.m.bus.write8(0x0100 + sp, 0x00)
+        sp = (sp - 1) & 0xFF
+        c.regs.sp = sp
+        return self._run_to(addr, 0x0001)
+
+    ## ---- disassembly ----
+    proc dis_line(self, pc):
+        let ent = cpu._table()[self.m.bus.read8(pc)]
+        let id = ent[0]
+        let mode = ent[1]
+        var n = 1
+        if mode == cpu.M_IMM or mode == cpu.M_ZP or mode == cpu.M_ZPX or mode == cpu.M_ZPY or mode == cpu.M_INDX or mode == cpu.M_INDY or mode == cpu.M_REL:
+            n = 2
+        elif mode == cpu.M_ABS or mode == cpu.M_ABSX or mode == cpu.M_ABSY or mode == cpu.M_IND:
+            n = 3
+        var bs = ""
+        var k = 0
+        while k < n:
+            bs = bs + _mh2(self.m.bus.read8(pc + k)) + " "
+            k = k + 1
+        while len(bs) < 9:
+            bs = bs + " "
+        let b1 = self.m.bus.read8(pc + 1)
+        let b2 = self.m.bus.read8(pc + 2)
+        var op = ""
+        if mode == cpu.M_IMM:
+            op = "#$" + _mh2(b1)
+        elif mode == cpu.M_ZP:
+            op = "$" + _mh2(b1)
+        elif mode == cpu.M_ZPX:
+            op = "$" + _mh2(b1) + ",X"
+        elif mode == cpu.M_ZPY:
+            op = "$" + _mh2(b1) + ",Y"
+        elif mode == cpu.M_ABS:
+            op = "$" + _mh4(b1 | (b2 << 8))
+        elif mode == cpu.M_ABSX:
+            op = "$" + _mh4(b1 | (b2 << 8)) + ",X"
+        elif mode == cpu.M_ABSY:
+            op = "$" + _mh4(b1 | (b2 << 8)) + ",Y"
+        elif mode == cpu.M_INDX:
+            op = "($" + _mh2(b1) + ",X)"
+        elif mode == cpu.M_INDY:
+            op = "($" + _mh2(b1) + "),Y"
+        elif mode == cpu.M_IND:
+            op = "($" + _mh4(b1 | (b2 << 8)) + ")"
+        elif mode == cpu.M_REL:
+            var tgt = pc + 2 + b1
+            if b1 >= 0x80:
+                tgt = pc + 2 + (b1 - 0x100)
+            op = "$" + _mh4(tgt & 0xFFFF)
+        return _mh4(pc) + "- " + bs + _MNEMS[id] + op
+
+    proc list(self, addr):
+        var pc = addr
+        var n = 0
+        while n < 20:
+            self.out = self.out + self.dis_line(pc) + "\r\n"
+            let ent = cpu._table()[self.m.bus.read8(pc)]
+            let mode = ent[1]
+            var sz = 1
+            if mode == cpu.M_IMM or mode == cpu.M_ZP or mode == cpu.M_ZPX or mode == cpu.M_ZPY or mode == cpu.M_INDX or mode == cpu.M_INDY or mode == cpu.M_REL:
+                sz = 2
+            elif mode == cpu.M_ABS or mode == cpu.M_ABSX or mode == cpu.M_ABSY or mode == cpu.M_IND:
+                sz = 3
+            pc = (pc + sz) & 0xFFFF
+            n = n + 1
+        self.last_addr = pc
+        return ""
+
+    ## ---- command line ----
+    proc cmd(self, line):
+        self.out = ""
+        let s = upper(strip(line))
+        if s == "":
+            return ""
+        if len(s) == 1 and (s == "E" or s == "C"):
+            if s == "C":
+                return self.jsr(self.last_addr)
+            return "exit"
+        var i = 0
+        var v = 0
+        var vset = false
+        while i < len(s) and _mhexv(s[i]) >= 0:
+            v = v * 16 + _mhexv(s[i])
+            vset = true
+            i = i + 1
+        if i >= len(s):
+            return ""
+        let ch = s[i]
+        let rest = slice(s, i + 1, len(s))
+        if ch == ".":
+            var a2 = 0
+            var a2set = false
+            var j = 0
+            while j < len(rest) and _mhexv(rest[j]) >= 0:
+                a2 = a2 * 16 + _mhexv(rest[j])
+                a2set = true
+                j = j + 1
+            if vset == false:
+                v = (self.last_addr + 1) & 0xFFFF
+            if a2set == false:
+                return self.dump(v, v + 7, true)
+            return self.dump(v, a2, true)
+        if ch == "-":
+            var a2 = 0
+            var a2set = false
+            var j = 0
+            while j < len(rest) and _mhexv(rest[j]) >= 0:
+                a2 = a2 * 16 + _mhexv(rest[j])
+                a2set = true
+                j = j + 1
+            if vset == false:
+                v = self.last_addr
+                self.out = self.out + self.line8(v - 7) + "\r\n"
+                self.last_addr = v - 8
+                return ""
+            if a2set == false:
+                return self.dump(v - 7, v, false)
+            return self.dump(v, a2, false)
+        if ch == ":":
+            if vset == false:
+                v = self.last_addr
+            return self.store(v, rest)
+        if ch == "G":
+            if vset == false:
+                v = self.run_vec
+            return self.go(v)
+        if ch == "J" or ch == "C":
+            if vset == false:
+                v = self.last_addr
+            return self.jsr(v)
+        if ch == "R":
+            return self.go(self.run_vec)
+        if ch == "S":
+            self.m.cpu.step()
+            self.out = self.out + self.regs_line()
+            return ""
+        if ch == "T":
+            let c = self.m.cpu
+            var n = 0
+            while n < self._GO_GUARD and c.halted == false:
+                c.step()
+                n = n + 1
+            self.out = self.out + self.regs_line()
+            return ""
+        if ch == "L":
+            if vset == false:
+                v = self.last_addr
+            return self.list(v)
+        if ch == "N" or ch == "I" or ch == "F":
+            self.dmode = ch
+            return ""
+        if ch == "E":
+            return "exit"
+        return ""

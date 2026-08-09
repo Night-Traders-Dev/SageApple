@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Milestone 14 — Apple II software stack
+- `basic/basic.sage` — full Applesoft BASIC interpreter (~2160 lines):
+  floating-point arithmetic with `^` and scientific notation, string
+  functions (ASC/CHR$/LEFT$/RIGHT$/MID$/LEN/STR$/VAL), numeric functions
+  (INT/SQR/ABS/SGN/RND/EXP/LOG/SIN/COS/TAN/ATN/FRE/PEEK/PDL/POS/SPC/TAB),
+  GOSUB/RETURN, ON GOTO/GOSUB, READ/DATA/RESTORE, DEF FN, DIM arrays,
+  GET, POKE, CALL, BEEP, ONERR GOTO/RESUME, `:` statement separators,
+  immediate-mode with RUN/GOTO promotion, `RUN n` form, `IF ... GOTO`
+  syntax, Applesoft error messages with `IN n` line numbers. Drives the
+  machine bus (POKE/PEEK/CALL); `CALL -151`/`CALL 65449` enter the monitor.
+- `sageapple/dos.sage` — DOS 3.3 command processor: CATALOG (DOS
+  listing with lock markers and zero-padded sector counts), SAVE/LOAD/
+  RUN/VERIFY, BSAVE/BLOAD/BRUN with A<addr>/L<len>, DELETE/RENAME/LOCK/
+  UNLOCK, MAXFILES (RANGE ERROR), MON/NOMON, PR#/IN# (PR#0/IN#0 handled
+  as one word), INIT/OPEN/CLOSE/READ/WRITE/APPEND/POSITION/EXEC/FP/INT.
+  DOS-consistent errors: FILE NOT FOUND, FILE TYPE MISMATCH, DIRECTORY
+  FULL vs DISK FULL, RANGE ERROR.
+- `sageapple/storage.sage` — SAGEFS v2: 20-byte directory entries with
+  DOS file types (A/B/T/I) and lock flags, format version 0x02;
+  `save_applesoft`, `type_at(i)`/`flags_at(i)`, 20-byte-entry delete.
+- `sageapple/monitor.sage` — new host-side Apple II monitor class (`*`
+  prompt): forward/backward dumps, byte stores, G/J/C go-call, run
+  vector, step/trace, disassembly, display modes, `E` exit; the AVR
+  monitor ROM (help/dump/peek/poke/regs/run/reset) is preserved.
+- `sageapple/os.sage` — unified `]`/`*` shell: DOS verbs, Applesoft
+  lines, monitor interop; RUN routing drains the BASIC interpreter so
+  programs suspending at INPUT resume over the shell; `drain()`; prompt
+  keeps a single CRLF; ported `run_6502_app` for BINARY apps.
+- Tests: `tests/basic/test_basic.sage` (49 checks), `tests/machine/
+  test_apple2.sage` (new, 30 checks), `tests/machine/test_os.sage`
+  (24), `tests/storage/test_fs.sage` (26), `tools/run_os.sage` `--test`
+  session (23). Full suite: 15 suites, 263 checks, all passing.
+- Docs: README.md, docs/basic.md (rewritten for Applesoft), docs/os.md
+  (DOS + monitor + SAGEFS v2), docs/tests.md, docs/architecture.md
+  updated; test-count text refreshed everywhere.
+
 ### Fixes — post-M13 audit
 - `sageapple/os.sage` — splash text typo (`SAGEAAPPLE` → `SAGEAPPLE`).
 - `sageapple/monitor.sage` — removed the dead first `pad32k` definition.

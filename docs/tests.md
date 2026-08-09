@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **14 SageLang suites: 220 checks**, each
+SageApple is validated by **15 SageLang suites: 263 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -21,14 +21,15 @@ sage tests/boot/test_monitor.sage
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
 | `tests/boot/test_uart.sage` | 8 | UART device RX/TX/status + echo-terminal |
 | `tests/boot/test_monitor.sage` | 10 | monitor session (help/poke/peek/dump/regs/run/reset/unknown) |
-| `tests/basic/test_basic.sage` | 17 | arithmetic, precedence, LET/PRINT, GOTO/IF, FOR/NEXT/STEP, INPUT, LIST/NEW |
+| `tests/basic/test_basic.sage` | 49 | Applesoft arithmetic, strings, functions, control flow, errors |
 | `tests/display/test_spi.sage` | 9 | SPI framing, CS, loopback, counters |
 | `tests/display/test_display.sage` | 29 | OLED decode, windows, pixels/lines/text, 6502-driven |
 | `tests/storage/test_flash.sage` | 19 | flash IDs, WEL, program/read, sector erase, 6502-driven |
-| `tests/storage/test_fs.sage` | 26 | SAGEFS round-trips, limits, persistence, BASIC save/load |
+| `tests/storage/test_fs.sage` | 26 | SAGEFS v2 round-trips, limits, persistence, BASIC save/load |
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
-| `tests/machine/test_os.sage` | 23 | the definition-of-done session |
-| **Total** | **220** | |
+| `tests/machine/test_os.sage` | 24 | the definition-of-done session |
+| `tests/machine/test_apple2.sage` | 30 | DOS 3.3 verbs, file types, monitor shell, CALL -151 |
+| **Total** | **263** | |
 
 ## How suites assert
 

@@ -11,7 +11,8 @@ Usage:
 
 Commands:
     build      Generate artifacts + build AVR firmware (default pipeline)
-    test       Run all 14 host test suites (220 checks)
+    test       Run all 15 host test suites (263 checks)
+    run        Boot the OS to an interactive shell on the host (persistent flash disk)
     avr        Build the ATmega328P firmware only (make -C avr)
     host-test  Host equivalence oracle (C port vs Sage reference)
     flash      Flash the board via avrdude
@@ -22,6 +23,10 @@ Commands:
 
 Flags:
     build --skip-avr        Skip the AVR firmware build even if the toolchain exists
+    run --image=PATH        SAGEFS disk image file (default build/flash.img)
+    run --format            Wipe the filesystem and reinstall the stock apps
+    run --no-save           Don't write the disk image back after the session
+    run --test              Scripted OS verification session (no prompt)
     flash --device=PATH     Serial device (default /dev/ttyUSB0)
     flash --baud=RATE       Bootloader baud rate (default 115200)
     flash --proto=NAME      AVRDUDE programmer protocol (default arduino)
@@ -317,6 +322,17 @@ def cmd_test(args: list[str]) -> None:
     step_ok(f"all tests passed ({passed} suites)")
 
 
+def cmd_run(args: list[str]) -> None:
+    banner(f"run — {PROJECT_NAME} (host emulation)")
+    check_dependencies()
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    section("Boot + OS shell (persistent flash disk)")
+    step(f"sage tools/run_os.sage {' '.join(args)}")
+    run([sage_cmd(), "tools/run_os.sage"] + args, cwd=ROOT)
+    ok()
+    step_ok("OS session finished — disk image kept in build/flash.img")
+
+
 def cmd_avr(args: list[str]) -> None:
     banner(f"avr — {PROJECT_NAME}")
     check_dependencies()
@@ -452,6 +468,7 @@ def main() -> None:
     commands: dict[str, callable] = {
         "build": cmd_build,
         "test": cmd_test,
+        "run": cmd_run,
         "avr": cmd_avr,
         "host-test": cmd_host_test,
         "flash": cmd_flash,
@@ -471,6 +488,8 @@ def main() -> None:
     args = sys.argv[2:]
     if cmd == "build" and len(args) > 0:
         args = [a for a in args if a in ("--skip-avr",)]
+    elif cmd == "run" and len(args) > 0:
+        args = [a for a in args if a in ("--format", "--no-save", "--test") or a.startswith("--image=")]
     commands[cmd](args)
 
 

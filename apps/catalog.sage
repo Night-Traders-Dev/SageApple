@@ -48,7 +48,7 @@ proc install_basic_apps(st, names):
         elif _has(names, app[0]):
             want = true
         if want and st.size_of(app[0]) == -1:
-            if st.save_text(app[0], app[1]) == 0:
+            if st.save_applesoft(app[0], app[1]) == 0:
                 installed = installed + 1
         i = i + 1
     return installed

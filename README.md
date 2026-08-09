@@ -8,9 +8,9 @@ board.
 
 At its core is a reusable **Sage6502 CPU core** — a table-driven NMOS 6502
 interpreter — plus a **SageLang-to-6502 compiler backend**, a complete
-SageApple machine (bus, devices, Tiny BASIC, monitor, OS, filesystem), and
-a **real ATmega328P port** where the core is re-implemented in C and runs on
-the chip over a physical UART.
+SageApple machine (bus, devices, Applesoft BASIC, DOS 3.3, monitor, OS,
+filesystem), and a **real ATmega328P port** where the core is
+re-implemented in C and runs on the chip over a physical UART.
 
 ```
                     ┌───────────────────────────────┐
@@ -18,9 +18,10 @@ the chip over a physical UART.
                     ├───────────────────────────────┤
                     │  sageapple/   OS · filesystem │
                     │               graphics ·      │
+                    │               DOS 3.3 ·       │
                     │               monitor         │
                     ├───────────────────────────────┤
-                    │  basic/   Tiny BASIC          │
+                    │  basic/   Applesoft BASIC     │
                     ├───────────────────────────────┤
                     │  compiler/ asm6502 + backend  │
                     ├───────────────────────────────┤
@@ -34,8 +35,12 @@ the chip over a physical UART.
 
 - All layers run under the host `sage` interpreter (full emulation) **or**
   on the real 328P (C core + monitor ROM in PROGMEM).
-- The same terminal session — `help dump peek poke regs run reset` — is a
-  byte-exact transcript check between host and chip.
+- The host OS boots into an Apple II software stack: a DOS 3.3 command
+  processor, full Applesoft BASIC at a `]` prompt, and an Apple II monitor
+  (`*` prompt, `CALL -151`) with memory dumps, disassembly and go.
+- The AVR board boots into the classic 6502 monitor (`help dump peek poke
+  regs run reset`); that session is a byte-exact transcript check between
+  host and chip.
 
 ## Status
 
@@ -57,8 +62,9 @@ hardware:
 | M11 | SPI NOR flash + SAGEFS-6502 filesystem (BASIC persistence) |
 | M12 | Standalone OS: speaker, boot menu, catalog apps, monitor interop |
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
+| M14 | Apple II software stack: DOS 3.3 command processor, full Applesoft BASIC, host Apple II monitor (`*` dumps/disassembly/go), unified `]` BASIC / `*` monitor shell, SAGEFS v2 with DOS file types |
 
-Host suites: **14 modules, 220 checks passing** — plus the AVR host
+Host suites: **15 modules, 263 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture
@@ -101,7 +107,7 @@ Component docs live in [docs/](docs/architecture.md):
 | sage6502 | CPU core, tables, registers, flags |
 | bus | bus.sage + AppleBus memory map |
 | devices | UART · SPI · OLED · NOR flash · speaker |
-| basic | Tiny BASIC interpreter |
+| basic | Applesoft BASIC interpreter |
 | compiler | asm6502 assembler + BASIC→6502 backend |
 | os | OS console · monitor · SAGEFS · graphics |
 | avr | hardware port, build, flash, on-board session |
@@ -112,10 +118,16 @@ Component docs live in [docs/](docs/architecture.md):
 
 ```sh
 sage tools/avr_boot.sage         # assemble + emit build/boot.bin & boot.hex
-sage tests/machine/test_os.sage  # full end-to-end OS check (23 checks)
+sage tests/machine/test_os.sage  # full end-to-end OS check (24 checks)
+./sagemake run                   # boot the OS to an interactive shell on the
+                                 # host, with a persistent flash disk
+                                 # (build/flash.img); try help, dir, apps,
+                                 # run HELLO, save MYPROG ... exit to save
+./sagemake run --format          # wipe the disk and reinstall stock apps
+./sagemake run --test            # scripted verification session (no prompt)
 ```
 
-All 14 suites run the same way; see [docs/tests.md](docs/tests.md).
+All 15 suites run the same way; see [docs/tests.md](docs/tests.md).
 
 ## Hardware
 
@@ -143,10 +155,10 @@ Fuses (USBasp): `-U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m`
 
 ## Test suite
 
-Run any module standalone, or all 14:
+Run any module standalone, or all 15:
 
 ```sh
-for t in tests/*/*.sage; do sage "$t"; done   # 220 checks, all OK
+for t in tests/*/*.sage; do sage "$t"; done   # 263 checks, all OK
 ```
 
 ## Repository layout
@@ -154,7 +166,7 @@ for t in tests/*/*.sage; do sage "$t"; done   # 220 checks, all OK
 ```
 apps/          installable apps (HELLO / COUNTER / BEEP / MACHINE1)
 avr/           AVR runtime + C port of the core (make / avrdude)
-basic/         Tiny BASIC interpreter
+basic/         Applesoft BASIC interpreter
 bus/           applebus.sage (memory map) + flat bus
 compiler/      asm6502 (assembler) + backend (BASIC -> 6502)
 devices/       UART, SPI, display, flash, speaker models
@@ -162,7 +174,7 @@ docs/          component documentation
 sageapple/     os.sage, monitor.sage, storage.sage (SAGEFS), graphics.sage
 sage6502/      CPU core (cpu.sage, registers, IRQ/NMI)
 tools/         oracle/ROM/table generators
-tests/         14 suites, 220 checks
+tests/         15 suites, 263 checks
 ```
 
 ## License

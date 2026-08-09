@@ -118,7 +118,7 @@ while l < len(loaded):
 b1.reset_out()
 b1.run()
 check(contains(b1.out, "HELLO FROM STORAGE"), "persisted program RUNs and prints")
-check(contains(b1.out, "OK"), "program finishes with OK")
+check(not b1.running, "program finishes and returns to immediate mode")
 check(contains(b1.out, "1\r\n2\r\n3"), "loop executes its body")
 
 print("== persistence across a fresh filesystem instance ==")

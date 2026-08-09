@@ -10,8 +10,9 @@ sageapple/
 ├── boot.sage       boot ROM builder (banner + reset vector)
 ├── echo.sage       UART echo ROM (host <-> 6502 proof)
 ├── terminal.sage   host terminal bridge
-├── monitor.sage    the command monitor ROM ($E000)
-├── os.sage         the console OS
+├── monitor.sage    AVR monitor ROM ($E000) + host Apple II monitor
+├── os.sage         the console OS (`]`/`*` shell)
+├── dos.sage        DOS 3.3 command processor (CATALOG/SAVE/LOAD/...)
 ├── storage.sage    SAGEFS-6502 filesystem
 ├── graphics.sage   5x7 font + drawing primitives
 └── apps/catalog.sage   installed apps (HELLO/COUNTER/BEEP/MACHINE1)
@@ -57,10 +58,12 @@ stable and returns the *increment* of the TX text — the model for the
 host-emulated terminal sessions in the test suite and the transcript
 oracle.
 
-## `monitor.sage` — the command monitor
+## `monitor.sage` — two monitors
 
-A monitor ROM written in 6502 assembly and built with `asm6502` inside an
-8 KB window, typically loaded at `$E000`:
+Two things live in this file:
+
+**AVR monitor ROM** — written in 6502 assembly and built with `asm6502`
+inside an 8 KB window, typically loaded at `$E000`:
 
 ```text
 help               command list
@@ -69,36 +72,76 @@ peek aaaa          byte at address
 poke aaaa vv       write byte
 regs               show P C X Y SP
 run                run the user program (stub)
-reset               warm restart
+reset              warm restart
 ```
 
 Dispatch reaches long-distance handlers with absolute `JMP` trampolines
 (branch range is only ±127 bytes). The monitor's exact boot + command
-session is the byte-for-byte “oracle” transcript (`tools/rom_gen.sage` →
+session is the byte-for-byte "oracle" transcript (`tools/rom_gen.sage` →
 `avr/host_expected.txt`) that the C port must reproduce (`make host-test`
 and the on-board terminal).
 
-## `os.sage` — the console OS
-
-The standalone OS (M12) with menu:
+**Host Apple II monitor** — the interactive `Monitor` class behind the
+`*` prompt (entered with `CALL -151` or the `monitor` command), with
+real Apple II commands:
 
 ```text
-help                 # help dir apps info basic monitor run save del beep splash
-dir                  # SAGEFS listing with sizes
-apps                 # catalog, [I] = installed
+* 300.30F       forward dump           * 30F-300   backward dump
+* 300:41 42     store bytes            * 300G       go
+* 300J / 300C   jsr/call               * R          run reset vector
+* S             step (T = trace)       * 300L       disassemble
+* E             exit to BASIC          * N / I / F  display mode
+```
+
+It drives the CPU directly (steps/executes through `cpu.step()`), so
+`G`/`J` run real 6502 code in RAM and `L` disassembles from the opcode
+table.
+
+## `os.sage` — the console OS
+
+A unified `]`/`*` shell: DOS 3.3 verbs, Applesoft BASIC at the `]`
+prompt, and the Apple II monitor at the `*` prompt:
+
+```text
+help                 # OS + DOS + BASIC command summary
 info                 # machine summary + port map
-basic                # into BASIC ("READY")
-monitor              # into the 6502 monitor
-run <name>           # run a saved BASIC program
-run-6502             # run a compiled 6502 app (MACHINE1 <name>, alias run <name>)
-save <name>          # persist current BASIC program
-del <name>           # remove a program
-beep                 # speaker tone
+apps                 # catalog, [I] = installed
+dir                  # = CATALOG (DOS listing)
 splash               # OLED: charge pump, mode, flip, offset, on, draw "SageApple"
+basic                # into BASIC ("] ")
+monitor              # into the 6502 monitor ("* ")
+run <name>           # DOS RUN: run a saved program
+exit / quit          # BYE
+everything else      # DOS verbs (catalog/save/load/delete/rename/lock/
+                     #   unlock/verify/mon/nomon/pr#/in#/maxfiles/init/
+                     #   open/close/read/write/append/position/bload/
+                     #   bsave/brun/exec/fp/int) or an Applesoft line
 ```
 
 On boot the OS self-checks CPU / memory / ROM / UART / SPI display /
-flash and prints `SageApple OS 0.1` before the `> ` prompt.
+flash and prints `SageApple OS 0.1` before the `] ` prompt. `RUN <file>`
+output from the DOS path is drained from the BASIC interpreter too, so
+programs prompting for input resume correctly over the shell.
+
+## `dos.sage` — the DOS 3.3 command processor
+
+`dos.command(cmd)` parses a DOS verb and drives BASIC/storage:
+
+* `CATALOG` — real DOS listing (`DISK VOLUME 254`, ` A 002 HELLO`, `*A`
+  lock marker, zero-padded 3-digit sectors, sequential sector counts);
+* `SAVE`/`LOAD`/`RUN`/`VERIFY` — Applesoft programs (type `A`);
+* `BSAVE`/`BLOAD`/`BRUN` — binary files with `A<addr>`/`L<len>` args
+  (type `B`); `RUN`/`BRUN` position the CPU and execute;
+* `DELETE`/`RENAME`/`LOCK`/`UNLOCK` — directory maintenance;
+* `MAXFILES n` — 1..16, else `RANGE ERROR`;
+* `MON`/`NOMON`, `PR#n`/`IN#n`, `INIT` — standard DOS behaviour
+  (PR#/IN# with a slot argument, `PR#0`/`IN#0` treated as one word);
+* `OPEN`/`CLOSE`/`READ`/`WRITE`/`APPEND`/`POSITION`/`EXEC`/`FP`/`INT` —
+  accepted and error-checked (file operations map to SAGEFS).
+
+Errors follow DOS conventions: `FILE NOT FOUND`, `FILE TYPE MISMATCH`,
+`DIRECTORY FULL` vs `DISK FULL` (an empty slot scan distinguishes them),
+`RANGE ERROR`.
 
 ## `storage.sage` — SAGEFS-6502
 
@@ -107,20 +150,26 @@ A minimal filesystem over the SPI NOR flash:
 | constant | value |
 |---|---|
 | block size | 256 bytes |
-| directory entries | 16 |
+| directory entries | 16 (20 bytes each) |
 | data blocks | 254 (block 2 .. 255) |
 
 Layout:
 
-- block 0 `[0..1]` magic `"SF"`, byte 2 version `0x01`, then 16 entries
-  of 16 bytes: name (12 bytes NUL-padded), size (u16 LE), start block
-  (u16 LE); the directory spills 16 bytes into block 1, so data begins
-  at block 2 — ~62 KB usable.
+- block 0 `[0..1]` magic `"SF"`, byte 2 format version `0x02`, then 16
+  entries of 20 bytes: name (12 bytes NUL-padded), size (u16 LE), start
+  block (u16 LE), type byte, flags byte; the directory spans block 0 plus
+  16 bytes of block 1, so data begins at block 2 — ~62 KB usable.
 
-API: `format()`, `save_blob(name, bytes)`, `load_blob(name)`,
-`delete(name)`, `list()`, `size_of(name)`, plus `save_text`/`load_text`
-(CRLF-joined lines) for BASIC workspace persistence. First-fit contiguous
-allocation; a full directory fails cleanly (-1).
+File types follow DOS: `A` Applesoft (0x41), `B` binary (0x42), `T`
+text (0x54), `I` integer (0x49); flags carry the lock bit.
+
+API: `format()`, `save_blob(name, bytes)` (first-fit contiguous),
+`load_blob(name)`, `delete(name)` (zeroes the entry), `list()`,
+`size_of(name)`, `find(name)`, `name_at(i)`, `type_at(i)`,
+`flags_at(i)`, `file_type(name)`, `sectors_of(name)`, `is_locked(name)`,
+`lock_file(name)`, `unlock_file(name)`, `rename_file(old, new)`, plus
+`save_text`/`load_text` and `save_applesoft` (CRLF-joined lines) for
+BASIC workspace persistence. A full directory fails cleanly (-1).
 
 ## `graphics.sage` — drawing on the OLED
 
@@ -144,7 +193,8 @@ allocation; a full directory fails cleanly (-1).
 |---|---|---|
 | `tests/boot/test_boot.sage` | 6 | boot ROM wiring |
 | `tests/boot/test_uart.sage` | 8 | echo / terminal |
-| `tests/boot/test_monitor.sage` | 10 | monitor session |
-| `tests/machine/test_os.sage` | 23 | the definition of done |
+| `tests/boot/test_monitor.sage` | 10 | AVR monitor session |
+| `tests/machine/test_os.sage` | 24 | the definition of done |
+| `tests/machine/test_apple2.sage` | 30 | DOS verbs, file types, monitor shell, CALL -151, POKE/PEEK |
 | `tests/machine/test_speaker.sage` | 12 | speaker from BASIC + 6502 |
 | `tests/storage/*` | 45 | flash + filesystem |
