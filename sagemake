@@ -11,7 +11,7 @@ Usage:
 
 Commands:
     build      Generate artifacts + build AVR firmware (default pipeline)
-    test       Run all 15 host test suites (263 checks)
+    test       Run all 15 host test suites (266 checks)
     run        Boot the OS to an interactive shell on the host (persistent flash disk)
     avr        Build the ATmega328P firmware only (make -C avr)
     host-test  Host equivalence oracle (C port vs Sage reference)

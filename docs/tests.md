@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **15 SageLang suites: 263 checks**, each
+SageApple is validated by **15 SageLang suites: 266 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -29,7 +29,7 @@ sage tests/boot/test_monitor.sage
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
 | `tests/machine/test_apple2.sage` | 30 | DOS 3.3 verbs, file types, monitor shell, CALL -151 |
-| **Total** | **263** | |
+| **Total** | **266** | |
 
 ## How suites assert
 

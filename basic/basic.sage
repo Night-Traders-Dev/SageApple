@@ -802,6 +802,7 @@ class Basic:
             return ["next", self._after(i + 1)]
         if k == "HOME":
             self.gmode = 0
+            self.out = self.out + "\x1b[2J\x1b[H"
             return ["next", self._after(i + 1)]
         if k == "VTAB" or k == "HTAB":
             let ev = self._expr(i + 1)

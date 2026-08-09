@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Clear screen
+- `basic/basic.sage` — `HOME` statement now clears the terminal (ANSI
+  `ESC[2J ESC[H`), in programs and immediate mode.
+- `sageapple/os.sage` — new `clear` shell command (same ANSI sequence),
+  listed in `help`.
+- `tests/machine/test_apple2.sage` — 3 new checks (shell clear, immediate
+  HOME, HOME in a program); suite is 15 modules, 266 checks.
+
 ### Milestone 14 — Apple II software stack
 - `basic/basic.sage` — full Applesoft BASIC interpreter (~2160 lines):
   floating-point arithmetic with `^` and scientific notation, string

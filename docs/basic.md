@@ -57,6 +57,7 @@ the in-line `CALL`-style handling for `&` + hex (Apple II monitor call).
 | `GET v` | single-character input |
 | `POKE addr,val` / `CALL addr` | drive the machine bus (`CALL -151`/`CALL 65449` enter the monitor) |
 | `BEEP [freq]` | optional speaker tone |
+| `HOME` | clear the terminal (ANSI `ESC[2J ESC[H`) |
 | `ONERR GOTO n` / `RESUME` | error trapping |
 | `END` / `STOP` | stop the program |
 | `REM` | skip comment |

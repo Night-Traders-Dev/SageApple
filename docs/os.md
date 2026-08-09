@@ -108,6 +108,7 @@ info                 # machine summary + port map
 apps                 # catalog, [I] = installed
 dir                  # = CATALOG (DOS listing)
 splash               # OLED: charge pump, mode, flip, offset, on, draw "SageApple"
+clear                # clear the terminal (ANSI ESC[2J ESC[H)
 basic                # into BASIC ("] ")
 monitor              # into the 6502 monitor ("* ")
 run <name>           # DOS RUN: run a saved program
@@ -195,6 +196,6 @@ BASIC workspace persistence. A full directory fails cleanly (-1).
 | `tests/boot/test_uart.sage` | 8 | echo / terminal |
 | `tests/boot/test_monitor.sage` | 10 | AVR monitor session |
 | `tests/machine/test_os.sage` | 24 | the definition of done |
-| `tests/machine/test_apple2.sage` | 30 | DOS verbs, file types, monitor shell, CALL -151, POKE/PEEK |
+| `tests/machine/test_apple2.sage` | 33 | DOS verbs, file types, monitor shell, CALL -151, POKE/PEEK |
 | `tests/machine/test_speaker.sage` | 12 | speaker from BASIC + 6502 |
 | `tests/storage/*` | 45 | flash + filesystem |

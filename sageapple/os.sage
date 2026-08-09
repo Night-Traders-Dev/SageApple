@@ -100,7 +100,7 @@ class OS:
         if verb == "EXIT" or verb == "QUIT":
             self.say("BYE\r\n")
         elif verb == "HELP":
-            self.say("Commands: help info apps dir splash basic monitor beep\r\n")
+            self.say("Commands: help info apps dir splash clear basic monitor beep\r\n")
             self.say("DOS: catalog save load run delete rename lock unlock verify\r\n")
             self.say("     mon nomon pr# in# maxfiles init open close read write append\r\n")
             self.say("     position bload bsave brun exec fp int\r\n")
@@ -117,6 +117,8 @@ class OS:
             self.say(self.dos.drain())
         elif verb == "SPLASH":
             self.say(self._splash())
+        elif verb == "CLEAR":
+            self.say("\x1b[2J\x1b[H")
         elif verb == "MONITOR":
             self.mode = "monitor"
             self.say("\r\n* ")
