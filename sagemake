@@ -1,0 +1,478 @@
+#!/usr/bin/env python3
+"""
+sagemake — Build system for SageApple
+
+An Apple II-inspired retrocomputer implemented in pure SageLang, targeting
+an ATmega328P / Arduino UNO R3-compatible board, built around the reusable
+Sage6502 CPU core.
+
+Usage:
+    ./sagemake [command] [flags]
+
+Commands:
+    build      Generate artifacts + build AVR firmware (default pipeline)
+    test       Run all 14 host test suites (220 checks)
+    avr        Build the ATmega328P firmware only (make -C avr)
+    host-test  Host equivalence oracle (C port vs Sage reference)
+    flash      Flash the board via avrdude
+    fuse       Set ATmega328P fuses (16 MHz external crystal)
+    install    Install the 'sageapple' launcher to /usr/local/bin
+    clean      Remove build artifacts
+    all        Run build then test
+
+Flags:
+    build --skip-avr        Skip the AVR firmware build even if the toolchain exists
+    flash --device=PATH     Serial device (default /dev/ttyUSB0)
+    flash --baud=RATE       Bootloader baud rate (default 115200)
+    flash --proto=NAME      AVRDUDE programmer protocol (default arduino)
+"""
+
+import hashlib
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+# ── ANSI helpers ──────────────────────────────────────────────────────────────
+
+RESET = "\033[0m"
+BOLD = "\033[1m"
+RED = "\033[31m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+CYAN = "\033[36m"
+
+
+def banner(title: str) -> None:
+    width = 60
+    line = f"{CYAN}{'═' * width}{RESET}"
+    print(f"\n{line}")
+    print(f"{CYAN}  {BOLD}{title}{RESET}")
+    print(f"{line}\n")
+
+
+def section(title: str) -> None:
+    print(f"  {CYAN}→{RESET} {title}")
+
+
+def step(msg: str) -> None:
+    print(f"    {msg} ... ", end="", flush=True)
+
+
+def ok() -> None:
+    print(f"{GREEN}✓ done{RESET}")
+
+
+def fail() -> None:
+    print(f"{RED}✗ failed{RESET}")
+    sys.exit(1)
+
+
+def step_ok(detail: str) -> None:
+    print(f"{GREEN}✓ {detail}{RESET}")
+
+
+def step_fail(detail: str) -> None:
+    print(f"{RED}✗ {detail}{RESET}")
+    sys.exit(1)
+
+
+def step_warn(detail: str) -> None:
+    print(f"{YELLOW}! {detail}{RESET}")
+
+
+def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
+    """Run a command and return the result."""
+    if "env" in kwargs:
+        kwargs["env"] = {**os.environ, **kwargs["env"]}
+    else:
+        kwargs["env"] = os.environ.copy()
+
+    try:
+        return subprocess.run(cmd, check=True, **kwargs)
+    except subprocess.CalledProcessError as e:
+        step_fail(f"command failed with exit code {e.returncode}: {' '.join(cmd)}")
+    except FileNotFoundError:
+        step_fail(f"command not found: {cmd[0]}")
+
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+ROOT = Path(__file__).resolve().parent
+BUILD_DIR = ROOT / "build"
+AVR_DIR = ROOT / "avr"
+PROJECT_NAME = "SageApple"
+BINARY_NAME = "sageapple"
+
+REQUIRED_DEPS = ["sage"]
+OPTIONAL_DEPS = ["make", "gcc", "avr-gcc", "avr-objcopy", "avr-objdump", "avr-size", "avrdude"]
+
+# Source trees that participate in the build hash.
+HASH_EXCLUDES = {".git", "build", "__pycache__", "tests", "docs", "assets"}
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def get_source_hash() -> str:
+    """Calculate a single SHA-256 hash for all build-relevant source files."""
+    hasher = hashlib.sha256()
+
+    sys_info = f"{platform.system()}-{platform.machine()}".encode("utf-8")
+    hasher.update(len(sys_info).to_bytes(8, byteorder='big'))
+    hasher.update(sys_info)
+    hasher.update(b"\0")
+
+    env_vars = ["CC", "CFLAGS", "CXX", "CXXFLAGS", "LDFLAGS", "SAGE_PATH"]
+    for var in env_vars:
+        val = os.environ.get(var, "")
+        if val:
+            val_bytes = f"{var}={val}".encode("utf-8")
+            hasher.update(len(val_bytes).to_bytes(8, byteorder='big'))
+            hasher.update(val_bytes)
+            hasher.update(b"\0")
+
+    script_path = Path(__file__).resolve()
+    files = [script_path]
+    for p in sorted(ROOT.rglob("*"), key=lambda p: p.as_posix()):
+        if p == script_path or "__pycache__" in p.parts or p.suffix == ".pyc":
+            continue
+        if p.suffix in (".o", ".elf", ".hex", ".lss") or p.name in ("host_test", "host_out.txt"):
+            continue
+        rel = p.relative_to(ROOT)
+        if rel.parts and rel.parts[0] in HASH_EXCLUDES:
+            continue
+        if p.is_file():
+            files.append(p)
+
+    for filepath in files:
+        if not filepath.is_file():
+            continue
+        if filepath == script_path:
+            path_bytes = b"\x00__sagemake_script__"
+        else:
+            path_bytes = filepath.relative_to(ROOT).as_posix().encode("utf-8")
+
+        hasher.update(len(path_bytes).to_bytes(8, byteorder='big'))
+        hasher.update(path_bytes)
+        hasher.update(b"\0")
+
+        try:
+            st = filepath.stat()
+            exec_bit = 1 if bool(st.st_mode & 0o111) else 0
+            hasher.update(exec_bit.to_bytes(8, byteorder='big'))
+            hasher.update(st.st_size.to_bytes(8, byteorder='big'))
+            with open(filepath, "rb") as f:
+                while chunk := f.read(8192):
+                    hasher.update(chunk)
+        except Exception as e:
+            step_fail(f"failed to read {filepath} for hashing: {e}")
+    return hasher.hexdigest()
+
+
+def file_hash(path: Path) -> str:
+    """SHA-256 of a single file, or empty string if absent."""
+    if not path.exists():
+        return ""
+    hasher = hashlib.sha256()
+    try:
+        with open(path, "rb") as f:
+            while chunk := f.read(8192):
+                hasher.update(chunk)
+    except Exception:
+        return ""
+    return hasher.hexdigest()
+
+
+def save_build_hash(combined: str) -> None:
+    BUILD_DIR.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=BUILD_DIR, prefix=".build_hash_", suffix=".tmp")
+    with open(fd, "w", encoding="utf-8") as f:
+        f.write(combined)
+    Path(tmp_path).replace(BUILD_DIR / ".build_hash")
+
+
+def has_avr_toolchain() -> bool:
+    return shutil.which("avr-gcc") is not None and shutil.which("avr-objcopy") is not None
+
+
+def has_host_toolchain() -> bool:
+    return shutil.which("make") is not None and shutil.which("gcc") is not None
+
+
+def sage_cmd() -> str:
+    return "sage"
+
+
+# ── Build steps ───────────────────────────────────────────────────────────────
+
+def gen_artifacts() -> None:
+    """Regenerate the boot image, C opcode tables, and ROM/oracle transcripts."""
+    section("Generation")
+    step("sage tools/avr_boot.sage")
+    run([sage_cmd(), "tools/avr_boot.sage"], cwd=ROOT, stdout=subprocess.DEVNULL)
+    ok()
+    step("sage tools/gen_table.sage")
+    run([sage_cmd(), "tools/gen_table.sage"], cwd=ROOT, stdout=subprocess.DEVNULL)
+    ok()
+    step("sage tools/rom_gen.sage")
+    run([sage_cmd(), "tools/rom_gen.sage"], cwd=ROOT, stdout=subprocess.DEVNULL)
+    ok()
+
+
+def build_avr() -> None:
+    section("AVR firmware (ATmega328P)")
+    step("make -C avr")
+    run(["make", "-C", "avr"], cwd=ROOT)
+    ok()
+
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+
+def cmd_build(args: list[str]) -> None:
+    banner(f"build — {PROJECT_NAME}")
+    check_dependencies()
+    skip_avr = "--skip-avr" in args
+
+    section("Compilation")
+
+    current_hash = get_source_hash()
+    hash_file = BUILD_DIR / ".build_hash"
+    boot_bin = BUILD_DIR / "boot.hex"
+    hex_file = AVR_DIR / "sageapple.hex"
+
+    combined_hash = f"{current_hash}:{file_hash(boot_bin)}:{file_hash(hex_file)}"
+    if hash_file.exists() and current_hash != "" and (boot_bin.exists() or hex_file.exists()):
+        cached_hash = hash_file.read_text(encoding="utf-8").strip()
+        if cached_hash == combined_hash:
+            step_ok("up-to-date")
+            return
+
+    gen_artifacts()
+
+    if skip_avr:
+        step_warn("skipping AVR firmware build (--skip-avr)")
+    elif has_avr_toolchain():
+        build_avr()
+    else:
+        step_warn("AVR toolchain (avr-gcc) not found — skipping firmware build")
+
+    section("Verification")
+    step("checking build/boot.hex")
+    if not boot_bin.exists():
+        step_fail("build/boot.hex missing — generation failed")
+    ok()
+    step("checking avr/sageapple.hex")
+    if hex_file.exists():
+        ok()
+    else:
+        print(f"{YELLOW}! skipped (no AVR toolchain){RESET}")
+
+    new_combined_hash = f"{current_hash}:{file_hash(boot_bin)}:{file_hash(hex_file)}"
+    save_build_hash(new_combined_hash)
+    step_ok("build complete")
+
+
+def cmd_test(args: list[str]) -> None:
+    banner(f"test — {PROJECT_NAME}")
+    section("Host suites")
+
+    suites = sorted(ROOT.glob("tests/*/*.sage"))
+    if not suites:
+        step_fail("no test suites found under tests/")
+
+    failures = 0
+    passed = 0
+    for suite in suites:
+        step(f"sage {suite.relative_to(ROOT)}")
+        try:
+            result = subprocess.run(
+                [sage_cmd(), str(suite.relative_to(ROOT))],
+                cwd=ROOT, capture_output=True, text=True, timeout=600,
+            )
+        except subprocess.TimeoutExpired:
+            step_fail(f"timed out: {suite.name}")
+        out = result.stdout + result.stderr
+        if result.returncode == 0 and "ALL OK" in out:
+            ok()
+            passed += 1
+        else:
+            failures += 1
+            print(f"{RED}✗ failed{RESET}")
+            print(out)
+            sys.exit(1)
+
+    print(f"  {CYAN}→{RESET} {passed}/{len(suites)} suites passed")
+
+    if has_host_toolchain():
+        section("Host equivalence oracle")
+        step("make -C avr host-test")
+        run(["make", "-C", "avr", "host-test"], cwd=ROOT)
+        ok()
+    else:
+        step_warn("make/gcc not found — skipping host-test")
+
+    step_ok(f"all tests passed ({passed} suites)")
+
+
+def cmd_avr(args: list[str]) -> None:
+    banner(f"avr — {PROJECT_NAME}")
+    check_dependencies()
+    if not has_avr_toolchain():
+        step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
+    build_avr()
+    step_ok("firmware built — see avr/sageapple.hex")
+
+
+def cmd_host_test(args: list[str]) -> None:
+    banner(f"host-test — {PROJECT_NAME}")
+    if not has_host_toolchain():
+        step_fail("make/gcc missing — cannot build the host oracle")
+    section("Host equivalence oracle")
+    step("make -C avr host-test")
+    run(["make", "-C", "avr", "host-test"], cwd=ROOT)
+    ok()
+    step_ok("C port matches the Sage reference")
+
+
+def _flash_args(args: list[str]) -> list[str]:
+    overrides = []
+    for a in args:
+        if a.startswith("--device="):
+            overrides.append(f"DEVICE={a[len('--device='):]}")
+        elif a.startswith("--baud="):
+            overrides.append(f"BAUD={a[len('--baud='):]}")
+        elif a.startswith("--proto="):
+            overrides.append(f"PROTO={a[len('--proto='):]}")
+    return overrides
+
+
+def cmd_flash(args: list[str]) -> None:
+    banner(f"flash — {PROJECT_NAME}")
+    if not has_avr_toolchain():
+        step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
+    overrides = _flash_args(args)
+    section("Flashing")
+    step("make -C avr flash")
+    run(["make", "-C", "avr", "flash"] + overrides, cwd=ROOT)
+    ok()
+    step_ok("firmware flashed")
+
+
+def cmd_fuse(args: list[str]) -> None:
+    banner(f"fuse — {PROJECT_NAME}")
+    if not has_avr_toolchain():
+        step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
+    section("Setting fuses (16 MHz external crystal)")
+    step("make -C avr program-fuse")
+    run(["make", "-C", "avr", "program-fuse"], cwd=ROOT)
+    ok()
+    step_ok("fuses set")
+
+
+def cmd_install(args: list[str]) -> None:
+    banner(f"install — {PROJECT_NAME}")
+    install_dir = Path("/usr/local/bin") if os.name != "nt" else Path(os.environ.get("APPDATA", "C:/ProgramData")) / PROJECT_NAME
+    target = install_dir / BINARY_NAME
+    step(f"installing to {target}")
+    try:
+        install_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        step_fail("permission denied (try running as Administrator/root)")
+    except Exception as e:
+        step_fail(f"failed to create install dir: {e}")
+
+    launcher = (
+        "#!/usr/bin/env python3\n"
+        "import os\n"
+        "import subprocess\n"
+        "import sys\n"
+        f"REPO = {str(ROOT)!r}\n"
+        "os.environ['SAGE_PATH'] = REPO + os.pathsep + os.environ.get('SAGE_PATH', '')\n"
+        "sys.exit(subprocess.call(['sage', os.path.join(REPO, 'tests/machine/test_os.sage')]))\n"
+    )
+    try:
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(launcher)
+        if os.name != "nt":
+            target.chmod(0o755)
+    except PermissionError:
+        step_fail("permission denied (try running as Administrator/root)")
+    except Exception as e:
+        step_fail(f"installation failed: {e}")
+    step_ok(f"installed {BINARY_NAME} — runs the canonical SageApple OS session")
+
+
+def cmd_clean(args: list[str]) -> None:
+    banner(f"clean — {PROJECT_NAME}")
+    section("Removing build artifacts")
+    step(f"removing {BUILD_DIR}")
+    if BUILD_DIR.exists():
+        try:
+            shutil.rmtree(BUILD_DIR)
+        except Exception as e:
+            step_fail(f"failed to remove build dir: {e}")
+    ok()
+    step("make -C avr clean")
+    run(["make", "-C", "avr", "clean"], cwd=ROOT)
+    ok()
+    step_ok("clean")
+
+
+def cmd_all(args: list[str]) -> None:
+    cmd_build(args)
+    cmd_test(args)
+
+
+# ── Dependency check ──────────────────────────────────────────────────────────
+
+def check_dependencies() -> None:
+    """Verify required tools are available on PATH."""
+    section("Dependencies")
+    missing = []
+    for dep in REQUIRED_DEPS:
+        step(f"checking {dep}")
+        if shutil.which(dep) is None:
+            missing.append(dep)
+            print(f"{RED}✗ not found{RESET}")
+        else:
+            ok()
+    if missing:
+        step_fail(f"missing: {', '.join(missing)}")
+    for dep in OPTIONAL_DEPS:
+        if shutil.which(dep) is None:
+            step_warn(f"optional dependency not found: {dep}")
+
+
+# ── CLI dispatch ──────────────────────────────────────────────────────────────
+
+def main() -> None:
+    commands: dict[str, callable] = {
+        "build": cmd_build,
+        "test": cmd_test,
+        "avr": cmd_avr,
+        "host-test": cmd_host_test,
+        "flash": cmd_flash,
+        "fuse": cmd_fuse,
+        "install": cmd_install,
+        "clean": cmd_clean,
+        "all": cmd_all,
+    }
+
+    if len(sys.argv) < 2 or sys.argv[1] not in commands:
+        banner(f"{PROJECT_NAME} — sagemake")
+        print(f"  Usage:  ./sagemake {'|'.join(commands.keys())}")
+        print()
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+    args = sys.argv[2:]
+    if cmd == "build" and len(args) > 0:
+        args = [a for a in args if a in ("--skip-avr",)]
+    commands[cmd](args)
+
+
+if __name__ == "__main__":
+    main()
