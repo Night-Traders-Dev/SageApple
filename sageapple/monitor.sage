@@ -531,9 +531,6 @@ proc pad_to(img, size, org, vec):
     return out
 
 proc pad32k(img):
-    return pad_to(img, 32768, 0x8000, 0x8000)
-
-proc pad32k(img):
     let out = []
     var i = 0
     while i < 32768:

@@ -2,6 +2,32 @@
 
 ## [Unreleased]
 
+### Fixes — post-M13 audit
+- `sageapple/os.sage` — splash text typo (`SAGEAAPPLE` → `SAGEAPPLE`).
+- `sageapple/monitor.sage` — removed the dead first `pad32k` definition.
+- `sage6502/cpu.sage` — cycle-exact page-cross penalties: +1 for indexed
+  reads (`abs,X` `abs,Y` `(zp),Y`) and +1 more for a taken branch whose
+  target crosses a page; `JMP ($xxFF)` now reproduces the NMOS quirk
+  (high byte read back on the same page). Mirrored in `avr/sage6502.c`.
+- `sage6502/cpu.sage` — `_CYCLES` base cycle table was corrupted (rows
+  `$20`/`$30`/`$40`–`$7F` garbled, 284 tokens instead of 256, e.g. `PLP`,
+  `RTI`, `RTS`, `JMP abs`, `JMP ind` all wrong); rebuilt from the canonical
+  NMOS timings (all 151 official opcodes verified against the 6502
+  reference, unofficial opcodes stay cycle-free) and regenerated the C
+  port's `CY[]` table via `tools/gen_table.sage`.
+- `avr/sage6502.c` — the C port now also counts cycles and exposes
+  IRQ/NMI soft latches (`cpu_interrupt()`/`cpu_nmi()`, `cpu_cycle_count()`),
+  matching the Sage reference; table restructured so the PROGMEM and host
+  variants are regenerated independently.
+- `tools/gen_table.sage` — regenerates both the `OP[]` and the new `CY[]`
+  (base cycle counts) tables, PROGMEM + host variants, so the C port
+  cannot drift.
+- `avr/bus.c` — `$3000` legacy console TX alias, matching `applebus.sage`.
+- `tests/6502/test_opcodes.sage` — 9 new checks: JMP-indirect page-wrap and
+  cycle-exact page-cross accounting (abs,X / (zp),Y / branch, crossing and
+  same-page).
+- `docs/sage6502.md` — fidelity notes updated to match.
+
 ### Milestone 1 — Repository
 - Repository scaffold created.
 - PLAN.md, README.md, LICENSE added.

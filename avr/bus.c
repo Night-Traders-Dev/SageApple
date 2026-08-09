@@ -64,6 +64,7 @@ uint8_t bus_read(uint16_t addr) {
 void bus_write(uint16_t addr, uint8_t v) {
     if (addr < 0x400) ram[addr] = v;
     else if (addr == 0x2001) uart_tx(v);
+    else if (addr == 0x3000) uart_tx(v);   /* legacy console TX alias (matches applebus.sage) */
     /* ROM + layout: reads-only; ignore writes */
 }
 

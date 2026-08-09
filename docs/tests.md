@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **14 SageLang suites: 211 checks**, each
+SageApple is validated by **14 SageLang suites: 220 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -15,7 +15,7 @@ sage tests/boot/test_monitor.sage
 | module | checks | what it proves |
 |---|---|---|
 | `tests/6502/test_cpu.sage` | 8 | CLI/LDA/TAX/INX/STX/ADC/STA, SBC, branch skip, flags |
-| `tests/6502/test_opcodees.sage` | 13 | abs,X / abs,Y addressing, page wrap, stack, JSR/RTS, branches, IRQ/RTI |
+| `tests/6502/test_opcodes.sage` | 22 | abs,X / abs,Y addressing, page wrap, stack, JSR/RTS, branches, IRQ/RTI, JMP ($xxFF) page-wrap, cycle-exact page-cross accounting |
 | `tests/compiler/test_asm6502.sage` | 11 | assembler encodes real 6502, labels resolve, program runs on the host emulator |
 | `tests/compiler/test_backend.sage` | 20 | compiled BASIC output equality (arithmetic, strings, GOTO/IF, comparisons, div-0) |
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
@@ -28,7 +28,7 @@ sage tests/boot/test_monitor.sage
 | `tests/storage/test_fs.sage` | 26 | SAGEFS round-trips, limits, persistence, BASIC save/load |
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 23 | the definition-of-done session |
-| **Total** | **211** | |
+| **Total** | **220** | |
 
 ## How suites assert
 

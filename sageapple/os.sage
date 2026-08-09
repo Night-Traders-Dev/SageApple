@@ -179,7 +179,7 @@ class OS:
         d.cmd(0xAF)                    # display on
         let g = graphics.Gfx(d)
         g.clear(0)
-        g.draw_text(0, 0, "SAGEAAPPLE")
+        g.draw_text(0, 0, "SAGEAPPLE")
         g.draw_text(0, 10, "OS 0.1")
         return "DISPLAY READY\r\n"
 

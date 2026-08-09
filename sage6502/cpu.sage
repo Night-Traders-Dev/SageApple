@@ -221,7 +221,7 @@ var _OPCODES = _table()
 
 ## canonical NMOS 6502 base cycle counts (256 entries)
 proc _load_cycles():
-    let raw = "7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,3,3,5,0,1,2,4,0,3,4,6,0,2,2,0,0,4,6,0,2,4,0,0,0,4,7,0,4,0,0,0,0,3,5,0,4,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,0,0,0,0,0,3,5,0,4,2,2,0,5,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,6,7,0,0,0,0,0,0,3,3,3,0,2,0,2,0,4,4,4,0,2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,2,6,0,0,3,3,5,0,2,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,0,0,3,3,5,0,2,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,5,0,0,4,6,0,2,4,0,0,3,6,7,0,0,4,6,0,2,4,0,0,0,6,7,0"
+    let raw = "7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,3,3,5,0,4,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,0,3,5,0,3,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,0,3,5,0,4,2,2,0,5,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,0,6,0,0,3,3,3,0,2,0,2,0,4,4,4,0,2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0"
     let parts = split(raw, ",")
     let t = []
     var i = 0
@@ -323,54 +323,69 @@ class CPU:
         let hi = self.pull()
         return (hi << 8) | lo
 
-    # effective address for non-immediate memory modes
+    # effective address for non-immediate memory modes; returns
+    # [addr, page_crossed] so indexed modes can charge the extra cycle
     proc fetch(self, mode):
         if mode == 1:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            return zp
+            return [zp, 0]
         if mode == 2:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            return (zp + self.regs.x) & 0xFF
+            return [(zp + self.regs.x) & 0xFF, 0]
         if mode == 3:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            return (zp + self.regs.y) & 0xFF
+            return [(zp + self.regs.y) & 0xFF, 0]
         if mode == 4:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            return (hi << 8) | lo
+            return [(hi << 8) | lo, 0]
         if mode == 5:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            return (((hi << 8) | lo) + self.regs.x) & 0xFFFF
+            let base = (hi << 8) | lo
+            let eff = (base + self.regs.x) & 0xFFFF
+            return [eff, self._pcross(base, eff)]
         if mode == 6:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            return (((hi << 8) | lo) + self.regs.y) & 0xFFFF
+            let base = (hi << 8) | lo
+            let eff = (base + self.regs.y) & 0xFFFF
+            return [eff, self._pcross(base, eff)]
         if mode == 7:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
             let ptr = (zp + self.regs.x) & 0xFF
             let lo = self.read8(ptr)
             let hi = self.read8((ptr + 1) & 0xFF)
-            return (hi << 8) | lo
+            return [(hi << 8) | lo, 0]
         if mode == 8:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
             let lo = self.read8(zp)
             let hi = self.read8((zp + 1) & 0xFF)
-            return (((hi << 8) | lo) + self.regs.y) & 0xFFFF
+            let base = (hi << 8) | lo
+            let eff = (base + self.regs.y) & 0xFFFF
+            return [eff, self._pcross(base, eff)]
         if mode == 10:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
+            # real 6502 bug: JMP ($xxFF) reads the high byte back on the
+            # same page ($xx00), not from the next page
             let ptr = (hi << 8) | lo
-            return self.read8(ptr) | (self.read8((ptr + 1) & 0xFFFF) << 8)
+            return [self.read8(ptr) | (self.read8((ptr & 0xFF00) | ((ptr + 1) & 0xFF)) << 8), 0]
+        return [0, 0]
+
+    # page boundary crossed by an indexed effective address?
+    proc _pcross(self, base, eff):
+        if (base & 0xFF00) != (eff & 0xFF00):
+            return 1
         return 0
 
     # signed value from an 8-bit byte
@@ -399,13 +414,24 @@ class CPU:
             self.op0(id)
             return 0
         # memory modes
-        let addr = self.fetch(mode)
+        let fa = self.fetch(mode)
+        let addr = fa[0]
         if id == 3 or id == 4 or id == 5:
             # pure stores: write without a dummy read (input ports have side effects)
             self.op_with_addr(id, 0, addr)
         else:
             let operand = self.read8(addr)
             self.op_with_addr(id, operand, addr)
+        # page-cross penalty: NMOS 6502 charges +1 for indexed reads that
+        # cross a page (loads/arith/compare/logical in abs,X abs,Y (zp),Y);
+        # stores and read-modify-writes already include it in their base
+        if fa[1] == 1:
+            if id == 0 or id == 1 or id == 2:
+                return 1
+            if id >= 16 and id <= 20:
+                return 1
+            if id == 22:
+                return 1
         return 0
 
     proc decode(self, code):
@@ -636,7 +662,8 @@ class CPU:
             self.write8(addr, result & 0xFF)
 
     # ------------------------------------------------------------------
-    # relative branches
+    # relative branches; returns extra cycles: 1 taken, 2 taken + page
+    # crossing (the NMOS 6502 charges +1 when the target crosses a page)
     # ------------------------------------------------------------------
     proc branch(self, id):
         let off = self.sbyte(self.read8(self.regs.pc))
@@ -667,6 +694,9 @@ class CPU:
             if self.status.V() == 1:
                 take = true
         if take:
+            let srcpage = self.regs.pc & 0xFF00
             self.regs.pc = (self.regs.pc + off) & 0xFFFF
+            if (self.regs.pc & 0xFF00) != srcpage:
+                return 2
             return 1
         return 0

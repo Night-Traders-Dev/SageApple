@@ -122,6 +122,74 @@ c6.run()
 check(c6.regs.y == 0x09, "IRQ serviced to $0120, LDY #$09 ran")
 check(c6.halted == true, "RTI returned to program which BRK-halted")
 
+# ---------------------------------------------------------------
+# 7. JMP ($xxFF) indirect page-wrap quirk (NMOS 6502 bug):
+#    the high byte is read back on the same page ($xx00)
+# ---------------------------------------------------------------
+print("JMP indirect page-wrap:")
+let m7 = mk()
+let b7 = m7[0]
+let c7 = m7[1]
+b7.write8(0x12FF, 0x03)             # pointer lo at $12FF
+b7.write8(0x1200, 0x01)             # pointer hi read back on same page
+runpgm(b7, [0x6C, 0xFF, 0x12, 0xA9, 0x55, 0x00])
+c7.run()
+check(c7.regs.a == 0x55, "JMP ($12FF) fetches hi from $1200, not $1300")
+
+# ---------------------------------------------------------------
+# 8. cycle-exact page-cross penalties
+# ---------------------------------------------------------------
+print("cycle counting:")
+let m8 = mk()
+let b8 = m8[0]
+let c8 = m8[1]
+b8.write8(0x0201, 0x41)
+runpgm(b8, [0xA2, 0x07, 0xBD, 0xFA, 0x01, 0x00])   # LDA $01FA,X -> $0201 crosses
+c8.run()
+check(c8.regs.a == 0x41, "LDA $01FA,X with X=7 loads $0201")
+check(c8.cycles == 14, "crossing LDA abs,X charged 2+5+7=14 cycles")
+
+let m8b = mk()
+let b8b = m8b[0]
+let c8b = m8b[1]
+b8b.write8(0x01FF, 0x41)
+runpgm(b8b, [0xA2, 0x05, 0xBD, 0xFA, 0x01, 0x00])   # LDA $01FA,X -> $01FF no cross
+c8b.run()
+check(c8b.cycles == 13, "same-page LDA abs,X charged 2+4+7=13 cycles")
+
+let m8c = mk()
+let b8c = m8c[0]
+let c8c = m8c[1]
+b8c.write8(0x10, 0xE0)
+b8c.write8(0x11, 0x01)
+b8c.write8(0x0210, 0x42)
+runpgm(b8c, [0xA0, 0x30, 0xB1, 0x10, 0x00])          # LDA ($10),Y -> $0210 crosses
+c8c.run()
+check(c8c.regs.a == 0x42, "LDA ($10),Y with Y=$30 loads $0210")
+check(c8c.cycles == 15, "crossing LDA (zp),Y charged 2+6+7=15 cycles")
+
+# branch taken + page crossing: BNE at $02FD jumps $02FF -> $0300
+let m8d = mk()
+let b8d = m8d[0]
+let c8d = m8d[1]
+b8d.write8(0x0300, 0x00)
+b8d.write8(0xFFFC, 0xFB)
+b8d.write8(0xFFFD, 0x02)
+b8d.load([0xA2, 0x01], 0x02FB)
+b8d.load([0xD0, 0x01], 0x02FD)
+c8d.reset()
+c8d.run()
+check(c8d.halted == true, "BNE crossing into $0300 hits BRK")
+check(c8d.cycles == 13, "crossing BNE charged 2+4+7=13 cycles")
+
+# branch taken, same page: only the +1 taken penalty
+let m8e = mk()
+let b8e = m8e[0]
+let c8e = m8e[1]
+runpgm(b8e, [0xA2, 0x01, 0xD0, 0x02, 0x00, 0x00])
+c8e.run()
+check(c8e.cycles == 12, "same-page BNE charged 2+3+7=12 cycles")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:

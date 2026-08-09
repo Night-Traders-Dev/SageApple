@@ -58,7 +58,7 @@ hardware:
 | M12 | Standalone OS: speaker, boot menu, catalog apps, monitor interop |
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 
-Host suites: **14 modules, 211 checks passing** — plus the AVR host
+Host suites: **14 modules, 220 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture
@@ -146,7 +146,7 @@ Fuses (USBasp): `-U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m`
 Run any module standalone, or all 14:
 
 ```sh
-for t in tests/*/*.sage; do sage "$t"; done   # 211 checks, all OK
+for t in tests/*/*.sage; do sage "$t"; done   # 220 checks, all OK
 ```
 
 ## Repository layout
@@ -162,7 +162,7 @@ docs/          component documentation
 sageapple/     os.sage, monitor.sage, storage.sage (SAGEFS), graphics.sage
 sage6502/      CPU core (cpu.sage, registers, IRQ/NMI)
 tools/         oracle/ROM/table generators
-tests/         14 suites, 211 checks
+tests/         14 suites, 220 checks
 ```
 
 ## License
