@@ -1,6 +1,6 @@
 # SageApple
 
-![SageApple](assets/SageApple.jpg)
+![SageApple](assets/SageApple.png)
 
 An **Apple II-inspired retrocomputer** implemented primarily in **pure
 SageLang**, targeting an inexpensive **ATmega328P / Arduino UNO R3-compatible**
