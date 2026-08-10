@@ -66,8 +66,29 @@ class DOS:
         self.mon_i = 0
         self.mon_o = 0
         self.out = ""
+        self.exec_depth = 0
 
-    ## ---- helpers ----
+    ## ---- EXEC ----
+    proc exec(self, rest):
+        if self.exec_depth >= 10:
+            self.err("EXEC DEPTH EXCEEDED")
+            return
+        let name = self._arg1(rest)
+        if name == "":
+            self.err("SYNTAX ERROR")
+            return
+        let lines = self.st.load_text(name)
+        var i = 0
+        self.exec_depth = self.exec_depth + 1
+        while i < len(lines) and self.host != nil:
+            let l = strip(lines[i])
+            if l != "":
+                self.host.command(l)
+                self.host.drain()
+            i = i + 1
+        self.exec_depth = self.exec_depth - 1
+        return -1
+
     proc drain(self):
         let s = self.out
         self.out = ""
@@ -75,14 +96,6 @@ class DOS:
 
     proc err(self, msg):
         self.out = self.out + msg + "\r\n"
-
-    proc _find_buf(self, name):
-        var i = 0
-        while i < len(self.buffers):
-            if upper(self.buffers[i]["name"]) == upper(name):
-                return i
-            i = i + 1
-        return -1
 
     proc _find_buf_num(self, n):
         if n >= 1 and n <= len(self.buffers):
@@ -688,7 +701,7 @@ class DOS:
                     q = q + 1
                 alen = v
             p = p + 1
-        if alen == 0:
+        if alen == 0 or alen > 65535:
             self.err("SYNTAX ERROR")
             return
         if self.st.is_locked(name) == 1:

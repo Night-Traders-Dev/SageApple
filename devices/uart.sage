@@ -14,6 +14,8 @@ class UART:
         self.rx = []
         self.rx_head = 0
         self.tx = []
+        self.tx_rendered = 0
+        self.tx_str = ""
 
     ## flag a byte received (keyboard -> RX FIFO)
     proc receive(self, ch):
@@ -54,19 +56,21 @@ class UART:
         return len(self.tx)
 
     proc tx_text(self):
-        var s = ""
-        var i = 0
+        var i = self.tx_rendered
         let n = len(self.tx)
+        var chunk = ""
         while i < n:
             let b = self.tx[i]
             if b == 13:
-                s = s + "\r"
+                chunk = chunk + "\r"
             elif b == 10:
-                s = s + "\n"
+                chunk = chunk + "\n"
             else:
-                s = s + _printable(b)
+                chunk = chunk + _printable(b)
             i = i + 1
-        return s
+        self.tx_rendered = n
+        self.tx_str = self.tx_str + chunk
+        return self.tx_str
 
 proc _printable(v):
     let ch = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"

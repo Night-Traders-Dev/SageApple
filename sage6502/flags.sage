@@ -86,12 +86,11 @@ class Status:
 
     ## set N and Z from a result byte (mirrors the CPU's common flag path)
     proc upd_nz(self, value):
-        value = value & 0xFF
-        self.set_N(value & 0x80)
-        if value == 0:
-            self.set_Z(1)
-        else:
-            self.set_Z(0)
+        let v = value & 0xFF
+        var zbit = 0
+        if v == 0:
+            zbit = 2
+        self.p = (self.p & 0x7D) | (v & 0x80) | zbit
 
     ## set P register from a stack push/pull byte
     proc from_byte(self, v):

@@ -47,6 +47,8 @@ class AppleBus:
 
     proc read8(self, addr):
         addr = addr & 0xFFFF
+        if addr >= 0x8000 and addr <= 0xFFFF:
+            return self.rom[addr - 0x8000]
         if addr < 0x0800:
             return self.ram[addr]
         if addr == 0x2000:
@@ -61,8 +63,6 @@ class AppleBus:
             return self.flash.cs_level()
         if addr == 0x2007:
             return 0x00
-        if addr >= 0x8000 and addr <= 0xFFFF:
-            return self.rom[addr - 0x8000]
         return 0x00
 
     proc write8(self, addr, value):
@@ -102,7 +102,9 @@ class AppleBus:
             i = i + 1
 
     proc write_ram(self, addr, value):
-        self.ram[addr] = value & 0xFF
+        addr = addr & 0xFFFF
+        if addr < 2048:
+            self.ram[addr] = value & 0xFF
 
     ## 6502 -> UART transmitted bytes, rendered to a string
     proc console_output(self):

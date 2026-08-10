@@ -16,6 +16,9 @@ import sage6502.registers
 import sage6502.flags
 import dicts
 
+# scratch buffer for fetch to avoid list allocation per call
+var _FETCH_SCRATCH = [0, 0]
+
 # addressing-mode constants
 #   0 imm, 1 zp, 2 zpx, 3 zpy, 4 abs, 5 absx, 6 absy,
 #   7 (zp,X), 8 (zp),Y, 9 acc, 10 (abs) indirect, 11 rel, 12 impl
@@ -329,41 +332,55 @@ class CPU:
         if mode == 1:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            return [zp, 0]
+            _FETCH_SCRATCH[0] = zp
+            _FETCH_SCRATCH[1] = 0
+            return _FETCH_SCRATCH
         if mode == 2:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            return [(zp + self.regs.x) & 0xFF, 0]
+            _FETCH_SCRATCH[0] = (zp + self.regs.x) & 0xFF
+            _FETCH_SCRATCH[1] = 0
+            return _FETCH_SCRATCH
         if mode == 3:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            return [(zp + self.regs.y) & 0xFF, 0]
+            _FETCH_SCRATCH[0] = (zp + self.regs.y) & 0xFF
+            _FETCH_SCRATCH[1] = 0
+            return _FETCH_SCRATCH
         if mode == 4:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            return [(hi << 8) | lo, 0]
+            _FETCH_SCRATCH[0] = (hi << 8) | lo
+            _FETCH_SCRATCH[1] = 0
+            return _FETCH_SCRATCH
         if mode == 5:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
             let base = (hi << 8) | lo
             let eff = (base + self.regs.x) & 0xFFFF
-            return [eff, self._pcross(base, eff)]
+            _FETCH_SCRATCH[0] = eff
+            _FETCH_SCRATCH[1] = self._pcross(base, eff)
+            return _FETCH_SCRATCH
         if mode == 6:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
             self.regs.pc = (self.regs.pc + 2) & 0xFFFF
             let base = (hi << 8) | lo
             let eff = (base + self.regs.y) & 0xFFFF
-            return [eff, self._pcross(base, eff)]
+            _FETCH_SCRATCH[0] = eff
+            _FETCH_SCRATCH[1] = self._pcross(base, eff)
+            return _FETCH_SCRATCH
         if mode == 7:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
             let ptr = (zp + self.regs.x) & 0xFF
             let lo = self.read8(ptr)
             let hi = self.read8((ptr + 1) & 0xFF)
-            return [(hi << 8) | lo, 0]
+            _FETCH_SCRATCH[0] = (hi << 8) | lo
+            _FETCH_SCRATCH[1] = 0
+            return _FETCH_SCRATCH
         if mode == 8:
             let zp = self.read8(self.regs.pc)
             self.regs.pc = (self.regs.pc + 1) & 0xFFFF
@@ -371,7 +388,9 @@ class CPU:
             let hi = self.read8((zp + 1) & 0xFF)
             let base = (hi << 8) | lo
             let eff = (base + self.regs.y) & 0xFFFF
-            return [eff, self._pcross(base, eff)]
+            _FETCH_SCRATCH[0] = eff
+            _FETCH_SCRATCH[1] = self._pcross(base, eff)
+            return _FETCH_SCRATCH
         if mode == 10:
             let lo = self.read8(self.regs.pc)
             let hi = self.read8(self.regs.pc + 1)
@@ -379,8 +398,12 @@ class CPU:
             # real 6502 bug: JMP ($xxFF) reads the high byte back on the
             # same page ($xx00), not from the next page
             let ptr = (hi << 8) | lo
-            return [self.read8(ptr) | (self.read8((ptr & 0xFF00) | ((ptr + 1) & 0xFF)) << 8), 0]
-        return [0, 0]
+            _FETCH_SCRATCH[0] = self.read8(ptr) | (self.read8((ptr & 0xFF00) | ((ptr + 1) & 0xFF)) << 8)
+            _FETCH_SCRATCH[1] = 0
+            return _FETCH_SCRATCH
+        _FETCH_SCRATCH[0] = 0
+        _FETCH_SCRATCH[1] = 0
+        return _FETCH_SCRATCH
 
     # page boundary crossed by an indexed effective address?
     proc _pcross(self, base, eff):

@@ -85,12 +85,17 @@ class Storage:
         var s = ""
         let o = self.dir_off(i)
         var j = 0
+        var valid = true
         while j < 12:
             let c = self.read_byte(o + j)
             if c == 0:
                 break
+            if c < 0x20 or c > 0x7E:
+                valid = false
             s = s + _printable(c)
             j = j + 1
+        if valid == false:
+            return ""
         return s
 
     proc size_of(self, name):
@@ -340,6 +345,19 @@ class Storage:
         if slot == -1:
             return -1
         let o = self.dir_off(slot)
+        let sz = self.read_byte(o + 12) | (self.read_byte(o + 13) << 8)
+        let st = self.read_byte(o + 14) | (self.read_byte(o + 15) << 8)
+        var b = st
+        let blocks = (sz + _BLOCK - 1) / _BLOCK
+        var k = 0
+        while k < blocks and b < _BLOCKS:
+            let off = b * _BLOCK
+            var j = 0
+            while j < _BLOCK:
+                self.write_byte(off + j, 0xFF)
+                j = j + 1
+            b = b + 1
+            k = k + 1
         var j = 0
         while j < _ENTRY:
             self.write_byte(o + j, 0)

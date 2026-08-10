@@ -600,6 +600,13 @@ class Monitor:
         return s
 
     proc dump(self, a1, a2, fwd):
+        let max_range = 4096
+        if a1 > a2:
+            let t = a1
+            a1 = a2
+            a2 = t
+        if a2 - a1 > max_range:
+            a2 = a1 + max_range
         var prev = -1
         if fwd:
             var base = a1

@@ -90,22 +90,24 @@ class OLED:
             self.mode = b & 0x03
         elif self.cmd_code == 0x21:
             if self.cmd_pending == 1:
-                self.col_a = b
-                self.col = b
+                self.col_a = b & 0x7F
+                self.col = b & 0x7F
             else:
-                self.col_b = b
+                self.col_b = b & 0x7F
         elif self.cmd_code == 0x22:
             if self.cmd_pending == 1:
-                self.page_a = b
-                self.page = b
+                self.page_a = b & 0x07
+                self.page = b & 0x07
             else:
-                self.page_b = b
+                self.page_b = b & 0x07
         elif self.cmd_code == 0x81:
             self.contrast = b
 
     ## write a data byte at the cursor
     proc data(self, b):
-        self.fb[self.page * 128 + self.col] = b
+        let idx = self.page * 128 + self.col
+        if idx >= 0 and idx < 1024:
+            self.fb[idx] = b
         self.col = self.col + 1
         if self.col > self.col_b:
             self.col = self.col_a

@@ -347,6 +347,7 @@ class Basic:
     proc set_line(self, num, text):
         var i = self.find_ci(num)
         let txt = strip(text)
+        let toks = _tok(txt)
         if i >= 0:
             if txt == "":
                 let np = []
@@ -358,6 +359,7 @@ class Basic:
                 self.prog = np
             else:
                 self.prog[i][1] = txt
+                self.prog[i][2] = toks
             return
         if txt == "":
             return
@@ -366,12 +368,12 @@ class Basic:
         var k = 0
         while k < len(self.prog):
             if self.prog[k][0] > num and done == false:
-                push(ins, [num, txt])
+                push(ins, [num, txt, toks])
                 done = true
             push(ins, self.prog[k])
             k = k + 1
         if done == false:
-            push(ins, [num, txt])
+            push(ins, [num, txt, toks])
         self.prog = ins
 
     ## ---- errors ----
@@ -476,7 +478,7 @@ class Basic:
                 self._render_gfx()
                 break
             if len(self.toks) == 0:
-                self.toks = _tok(self.prog[self.ci][1])
+                self.toks = self.prog[self.ci][2]
                 self.pos = 0
                 if self.trace_on:
                     self.out = self.out + "#" + intstr(self.prog[self.ci][0])
@@ -522,10 +524,10 @@ class Basic:
                     self.running = 0
                     break
                 self.ci = res[1]
-                self.toks = _tok(self.prog[self.ci][1])
+                self.toks = self.prog[self.ci][2]
                 self.pos = res[2]
             elif code == "reset":
-                self.toks = _tok(self.prog[self.ci][1])
+                self.toks = self.prog[self.ci][2]
                 self.pos = res[1]
             elif code == "mon":
                 self.running = 0
@@ -1253,7 +1255,13 @@ class Basic:
         if ev2[1]:
             return self._type_err()
         if self.machine != nil:
-            self.machine.bus.write8(int(ev[0]) & 0xFFFF, int(ev2[0]) & 0xFF)
+            let addr = int(ev[0]) & 0xFFFF
+            let val = int(ev2[0]) & 0xFF
+            if addr >= 0x2000 and addr <= 0x2007:
+                return self._err_res()  # device register range
+            if addr >= 0x3000 and addr <= 0x3007:
+                return self._err_res()  # legacy console
+            self.machine.bus.write8(addr, val)
         return ["next", self._after(ev2[2])]
 
     proc _st_call(self, i):
@@ -1265,6 +1273,10 @@ class Basic:
         let addr = int(ev[0])
         if addr == -151 or addr == 65449:
             return ["mon"]
+        if addr >= 0x2000 and addr <= 0x2007:
+            return self._err_res()  # device register range
+        if addr >= 0x3000 and addr <= 0x3007:
+            return self._err_res()  # legacy console
         if self.machine != nil:
             self.machine.cpu.regs.set_pc(addr & 0xFFFF)
             var n = 0
