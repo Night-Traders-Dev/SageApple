@@ -1,7 +1,5 @@
 # SageApple
 
-![SageApple](assets/SageApple.png)
-
 ![SageApple Info](assets/SageAppleInfo.png)
 
 An **Apple II-inspired retrocomputer** implemented primarily in **pure
@@ -52,7 +50,7 @@ equivalence test (`make host-test`).
 
 Two execution backends, one machine:
 
-![Architecture](assets/SageAppleInfo.png)
+![SageApple](assets/SageApple.png)
 
 The opcode table, ROM, and the canonical terminal session are all
 *generated* from the Sage sources (`tools/rom_gen.sage`,
@@ -135,8 +133,6 @@ for t in tests/*/*.sage; do sage "$t"; done   # 266 checks, all OK
 ```
 
 ## Repository layout
-
-![Repository Layout](assets/SageAppleInfo.png)
 
 ## License
 
