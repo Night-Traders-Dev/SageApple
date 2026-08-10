@@ -2,6 +2,8 @@
 
 ![SageApple](assets/SageApple.png)
 
+![SageApple Info](assets/SageAppleInfo.png)
+
 An **Apple II-inspired retrocomputer** implemented primarily in **pure
 SageLang**, targeting an inexpensive **ATmega328P / Arduino UNO R3-compatible**
 board.
@@ -11,27 +13,6 @@ interpreter — plus a **SageLang-to-6502 compiler backend**, a complete
 SageApple machine (bus, devices, Applesoft BASIC, DOS 3.3, monitor, OS,
 filesystem), and a **real ATmega328P port** where the core is
 re-implemented in C and runs on the chip over a physical UART.
-
-```
-                    ┌───────────────────────────────┐
-                    │  apps/catalog            apps │
-                    ├───────────────────────────────┤
-                    │  sageapple/   OS · filesystem │
-                    │               graphics ·      │
-                    │               DOS 3.3 ·       │
-                    │               monitor         │
-                    ├───────────────────────────────┤
-                    │  basic/   Applesoft BASIC     │
-                    ├───────────────────────────────┤
-                    │  compiler/ asm6502 + backend  │
-                    ├───────────────────────────────┤
-                    │  bus/ + devices/              │
-                    ├───────────────────────────────┤
-                    │  sage6502/  CPU core          │
-                    ├───────────────────────────────┤
-                    │  avr/   C runtime + C port    │
-                    └───────────────────────────────┘
-```
 
 - All layers run under the host `sage` interpreter (full emulation) **or**
   on the real 328P (C core + monitor ROM in PROGMEM).
@@ -71,15 +52,7 @@ equivalence test (`make host-test`).
 
 Two execution backends, one machine:
 
-```
-SageLang machine            AVR machine
-sageapple/machine.sage      avr/main.c + avr/sage6502.c
-        │                           │
-        ▼                           ▼
-  bus/applebus.sage           avr/bus.c (SRAM/PROGMEM)
-        │                           │
-  sage6502/cpu.sage            avr/sage6502.c (same core)
-```
+![Architecture](assets/SageAppleInfo.png)
 
 The opcode table, ROM, and the canonical terminal session are all
 *generated* from the Sage sources (`tools/rom_gen.sage`,
@@ -163,19 +136,7 @@ for t in tests/*/*.sage; do sage "$t"; done   # 266 checks, all OK
 
 ## Repository layout
 
-```
-apps/          installable apps (HELLO / COUNTER / BEEP / MACHINE1)
-avr/           AVR runtime + C port of the core (make / avrdude)
-basic/         Applesoft BASIC interpreter
-bus/           applebus.sage (memory map) + flat bus
-compiler/      asm6502 (assembler) + backend (BASIC -> 6502)
-devices/       UART, SPI, display, flash, speaker models
-docs/          component documentation
-sageapple/     os.sage, monitor.sage, storage.sage (SAGEFS), graphics.sage
-sage6502/      CPU core (cpu.sage, registers, IRQ/NMI)
-tools/         oracle/ROM/table generators
-tests/         15 suites, 266 checks
-```
+![Repository Layout](assets/SageAppleInfo.png)
 
 ## License
 
