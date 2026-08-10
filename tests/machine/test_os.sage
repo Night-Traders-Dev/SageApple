@@ -51,7 +51,7 @@ check(contains(os.out, "$2007"), "info lists the speaker port")
 
 print("== app install ==")
 m.bus.storage.format()
-check(catalog.install_basic_apps(m.bus.storage, []) == 3, "three BASIC apps installed")
+check(catalog.install_basic_apps(m.bus.storage, []) == 12, "twelve BASIC apps installed")
 check(catalog.install_6502_app(m.bus.storage) == 0, "6502 app installed")
 os.command("dir")
 check(contains(os.out, "HELLO"), "dir shows HELLO")
