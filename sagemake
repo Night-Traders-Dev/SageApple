@@ -112,7 +112,7 @@ AVR_DIR = ROOT / "avr"
 PROJECT_NAME = "SageApple"
 BINARY_NAME = "sageapple"
 
-REQUIRED_DEPS = ["sage"]
+REQUIRED_DEPS = ["sage-c"]
 OPTIONAL_DEPS = ["make", "gcc", "avr-gcc", "avr-objcopy", "avr-objdump", "avr-size", "avrdude"]
 
 # Source trees that participate in the build hash.
@@ -208,7 +208,7 @@ def has_host_toolchain() -> bool:
 
 
 def sage_cmd() -> str:
-    return "sage"
+    return "sage-c"
 
 
 # ── Build steps ───────────────────────────────────────────────────────────────
@@ -216,13 +216,13 @@ def sage_cmd() -> str:
 def gen_artifacts() -> None:
     """Regenerate the boot image, C opcode tables, and ROM/oracle transcripts."""
     section("Generation")
-    step("sage tools/avr_boot.sage")
+    step("sage-c tools/avr_boot.sage")
     run([sage_cmd(), "tools/avr_boot.sage"], cwd=ROOT, stdout=subprocess.DEVNULL)
     ok()
-    step("sage tools/gen_table.sage")
+    step("sage-c tools/gen_table.sage")
     run([sage_cmd(), "tools/gen_table.sage"], cwd=ROOT, stdout=subprocess.DEVNULL)
     ok()
-    step("sage tools/rom_gen.sage")
+    step("sage-c tools/rom_gen.sage")
     run([sage_cmd(), "tools/rom_gen.sage"], cwd=ROOT, stdout=subprocess.DEVNULL)
     ok()
 
@@ -291,7 +291,7 @@ def cmd_test(args: list[str]) -> None:
     failures = 0
     passed = 0
     for suite in suites:
-        step(f"sage {suite.relative_to(ROOT)}")
+        step(f"sage-c {suite.relative_to(ROOT)}")
         try:
             result = subprocess.run(
                 [sage_cmd(), str(suite.relative_to(ROOT))],
@@ -327,7 +327,7 @@ def cmd_run(args: list[str]) -> None:
     check_dependencies()
     BUILD_DIR.mkdir(parents=True, exist_ok=True)
     section("Boot + OS shell (persistent flash disk)")
-    step(f"sage tools/run_os.sage {' '.join(args)}")
+    step(f"sage-c tools/run_os.sage {' '.join(args)}")
     run([sage_cmd(), "tools/run_os.sage"] + args, cwd=ROOT)
     ok()
     step_ok("OS session finished — disk image kept in build/flash.img")
@@ -407,7 +407,7 @@ def cmd_install(args: list[str]) -> None:
         "import sys\n"
         f"REPO = {str(ROOT)!r}\n"
         "os.environ['SAGE_PATH'] = REPO + os.pathsep + os.environ.get('SAGE_PATH', '')\n"
-        "sys.exit(subprocess.call(['sage', os.path.join(REPO, 'tests/machine/test_os.sage')]))\n"
+        "sys.exit(subprocess.call(['sage-c', os.path.join(REPO, 'tests/machine/test_os.sage')]))\n"
     )
     try:
         with open(target, "w", encoding="utf-8") as f:
