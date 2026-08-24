@@ -344,6 +344,26 @@ class Basic:
             i = i + 1
         return -1
 
+    ## Tokenize a full program line (leading line number included) into
+    ## backend-compatible tokens: ["num", n] ["id", NAME] ["str", text]
+    ## ["sym", op]. Used by the 6502 compiler backend (M9).
+    proc tokenize(self, line):
+        let raw = _tok(line)
+        var out = []
+        var i = 0
+        while i < len(raw):
+            let t = raw[i]
+            if t[0] == "n":
+                push(out, ["num", t[1]])
+            elif t[0] == "i":
+                push(out, ["id", t[1]])
+            elif t[0] == "s":
+                push(out, ["str", t[1]])
+            else:
+                push(out, ["sym", t[1]])
+            i = i + 1
+        return out
+
     proc set_line(self, num, text):
         var i = self.find_ci(num)
         let txt = strip(text)
