@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### AppleCon — board controller
+- `tools/applecon.sage` — new host-side controller (`sage-c tools/applecon.sage`).
+  Opens with an artistic TUI (SAGE banner + board glyph), then an interactive
+  `sage> ` shell. `con 0/1/2` connect to the serial shells of three SageApple
+  boards (local `/dev/ttyUSB0`, plus two OrangePi boards over SSH); `status`
+  probes each port; `help`/`exit` as expected. Connection hands off to
+  `screen` for an interactive serial terminal; remote SSH is wrapped in a
+  `/tmp` helper so `sys.exec`'s `@` ban is respected.
+- `docs/applecon.md` — new doc; `docs/tools.md`, `README.md` updated.
+
 ### Clear screen
 - `basic/basic.sage` — `HOME` statement now clears the terminal (ANSI
   `ESC[2J ESC[H`), in programs and immediate mode.

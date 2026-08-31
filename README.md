@@ -83,6 +83,7 @@ Component docs live in [docs/](docs/architecture.md):
 | os | OS console · monitor · SAGEFS · graphics |
 | avr | hardware port, build, flash, on-board session |
 | tools | oracle/ROM/table generators |
+| applecon | `sage-c tools/applecon.sage` — TUI + `sage>` shell to connect to the boards |
 | tests | validation suites and how to run them |
 
 ## Quick start (host)
@@ -123,6 +124,26 @@ A=00 X=FD Y=11 SP=FD P=68
 
 Fuses (USBasp): `-U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m`
 (16 MHz external crystal).
+
+## Comms: AppleCon
+
+For a rack with more than one board, `tools/applecon.sage` is a host-side
+SageLang controller. It opens with an artistic TUI and drops into a
+`sage> ` shell:
+
+```sh
+sage-c tools/applecon.sage            # TUI + shell (use the C build)
+sage> status                          # probe local + OrangePi boards
+sage> con 0                           # this device's board (screen ttyUSB0)
+sage> con 1                           # OrangePi board 1 (SSH + screen)
+sage> con 2                           # OrangePi board 2 (SSH + screen)
+sage> exit
+```
+
+Each `con` hands off to an interactive `screen` serial terminal over the
+physical UART (9,600 baud); `C-a d`/`C-a k` returns to the `sage> `
+prompt. Remote boards are reached over SSH. See
+[docs/applecon.md](docs/applecon.md).
 
 ## Test suite
 

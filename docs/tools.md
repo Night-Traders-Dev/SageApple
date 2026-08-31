@@ -10,6 +10,7 @@ All run with the `sage` interpreter from the repo root.
 | `tools/rom_gen.sage` | builds the monitor ROM + oracle transcript |
 | `tools/gen_table.sage` | regenerates the C opcode table from the core |
 | `tools/hex_dump.sage` | dumps `build/boot.bin` for inspection |
+| `tools/applecon.sage` | artistic TUI + shell to connect to SageApple boards |
 
 ## `avr_boot.sage`
 
@@ -60,3 +61,33 @@ the fix for the drift that silently broke the on-chip dispatch.
 
 Small helper that reads `build/boot.bin` and prints 16 bytes per line
 with offsets, for eyeballing generated binaries.
+
+## `applecon.sage`
+
+The host-side controller for a rack of SageApple boards. It opens with
+an artistic TUI animation (banner + board glyph), then drops into an
+interactive `sage> ` shell.
+
+```sh
+sage-c tools/applecon.sage      # from the repo root
+```
+
+Commands:
+
+| command | action |
+|---|---|
+| `con 0` | connect to the board wired to **this** device (`/dev/ttyUSB0`) |
+| `con 1` | connect to the first board on the OrangePi (`/dev/ttyUSB0`) |
+| `con 2` | connect to the second board on the OrangePi (`/dev/ttyUSB1`) |
+| `status` | probe each port and report which boards are present |
+| `help` | show the command list |
+| `exit` | leave AppleCon |
+
+Connection is handed off to `screen` for an interactive serial terminal
+(exits back to the `sage> ` prompt with `C-a d`/`C-a k`). The remote
+OrangePi connections go through `ssh` (wrapped in a helper script because
+`sys.exec` forbids the `@` in `user@host`), with the board shell running
+over the SSH TTY.
+
+> **Note:** run AppleCon with the C build (`sage-c`). The self-hosted
+> RISC-V `sage` interpreter is unstable with the animation/shell loop.
