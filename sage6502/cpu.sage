@@ -1,13 +1,30 @@
 #########################################################################
 ## SageApple — Sage6502 CPU core (SageLang)
 ##
-## A table-driven 6502 (NMOS) emulator. Address space goes through a Bus
-## object so the same core runs on the host and later on AVR.
+## A table-driven NMOS 6502 emulator.
+##
+## Address space goes through a Bus object so the same core can run
+## on the host and later on AVR hardware.
+##
+## Features:
+##
+##   - Canonical NMOS 6502 opcode table
+##   - NMOS JMP ($xxFF) indirect-page bug
+##   - Indexed page-cross cycle penalties
+##   - Branch timing penalties
+##   - IRQ / NMI support
+##   - Correct stack status handling
+##   - BRK software interrupt behavior
+##   - Full NMOS binary arithmetic
+##   - Full NMOS decimal-mode ADC / SBC
+##
+## Usage:
 ##
 ##   import sage6502.registers
 ##   import sage6502.flags
 ##   import cpu
-##   let c = cpu.CPU(b)
+##
+##   let c = cpu.CPU(bus)
 ##   c.reset()
 ##   c.run(200)
 #########################################################################
@@ -16,34 +33,145 @@ import sage6502.registers
 import sage6502.flags
 import dicts
 
-# scratch buffer for fetch to avoid list allocation per call
+
+#########################################################################
+## Scratch buffer for fetch()
+##
+## Avoids allocating a new list for every effective-address calculation.
+##
+## Layout:
+##
+##   [0] = effective address
+##   [1] = page crossed
+#########################################################################
+
 var _FETCH_SCRATCH = [0, 0]
 
-# addressing-mode constants
-#   0 imm, 1 zp, 2 zpx, 3 zpy, 4 abs, 5 absx, 6 absy,
-#   7 (zp,X), 8 (zp),Y, 9 acc, 10 (abs) indirect, 11 rel, 12 impl
-let M_IMM = 0
-let M_ZP  = 1
-let M_ZPX = 2
-let M_ZPY = 3
-let M_ABS = 4
+
+#########################################################################
+## Addressing-mode constants
+##
+##   0  immediate
+##   1  zero page
+##   2  zero page,X
+##   3  zero page,Y
+##   4  absolute
+##   5  absolute,X
+##   6  absolute,Y
+##   7  (zero page,X)
+##   8  (zero page),Y
+##   9  accumulator
+##   10 absolute indirect
+##   11 relative
+##   12 implied
+#########################################################################
+
+let M_IMM  = 0
+let M_ZP   = 1
+let M_ZPX  = 2
+let M_ZPY  = 3
+let M_ABS  = 4
 let M_ABSX = 5
 let M_ABSY = 6
 let M_INDX = 7
 let M_INDY = 8
-let M_ACC = 9
-let M_IND = 10
-let M_REL = 11
-let M_IMP = 12
+let M_ACC  = 9
+let M_IND  = 10
+let M_REL  = 11
+let M_IMP  = 12
 
-# canonical NMOS 6502 opcode table: opcode -> (instruction_id, mode)
+
+#########################################################################
+## Canonical NMOS 6502 opcode table
+##
+## opcode -> [instruction_id, addressing_mode]
+##
+## Instruction IDs:
+##
+##   0   LDA
+##   1   LDX
+##   2   LDY
+##   3   STA
+##   4   STX
+##   5   STY
+##
+##   6   TAX
+##   7   TXA
+##   8   TAY
+##   9   TYA
+##   10  TSX
+##   11  TXS
+##
+##   12  PHA
+##   13  PHP
+##   14  PLA
+##   15  PLP
+##
+##   16  ADC
+##   17  SBC
+##   18  AND
+##   19  ORA
+##   20  EOR
+##   21  BIT
+##
+##   22  CMP
+##   23  CPX
+##   24  CPY
+##
+##   25  INC
+##   26  DEC
+##
+##   27  INX
+##   28  INY
+##   29  DEX
+##   30  DEY
+##
+##   31  ASL
+##   32  LSR
+##   33  ROL
+##   34  ROR
+##
+##   35  BCC
+##   36  BCS
+##   37  BEQ
+##   38  BMI
+##   39  BNE
+##   40  BPL
+##   41  BVC
+##   42  BVS
+##
+##   43  JMP
+##   44  JSR
+##   45  RTS
+##
+##   46  BRK
+##   47  RTI
+##   48  NOP
+##
+##   49  CLC
+##   50  CLD
+##   51  CLI
+##   52  CLV
+##   53  SEC
+##   54  SED
+##   55  SEI
+#########################################################################
+
 proc _table():
+
     let t = []
+
     var i = 0
+
     while i < 256:
         push(t, [0, M_IMP])
         i = i + 1
-    # LDA
+
+
+    #####################################################################
+    ## LDA
+    #####################################################################
+
     t[0xA9] = [0, M_IMM]
     t[0xA5] = [0, M_ZP]
     t[0xB5] = [0, M_ZPX]
@@ -52,19 +180,34 @@ proc _table():
     t[0xB9] = [0, M_ABSY]
     t[0xA1] = [0, M_INDX]
     t[0xB1] = [0, M_INDY]
-    # LDX
+
+
+    #####################################################################
+    ## LDX
+    #####################################################################
+
     t[0xA2] = [1, M_IMM]
     t[0xA6] = [1, M_ZP]
     t[0xB6] = [1, M_ZPY]
     t[0xAE] = [1, M_ABS]
     t[0xBE] = [1, M_ABSY]
-    # LDY
+
+
+    #####################################################################
+    ## LDY
+    #####################################################################
+
     t[0xA0] = [2, M_IMM]
     t[0xA4] = [2, M_ZP]
     t[0xB4] = [2, M_ZPX]
     t[0xAC] = [2, M_ABS]
     t[0xBC] = [2, M_ABSX]
-    # STA
+
+
+    #####################################################################
+    ## STA
+    #####################################################################
+
     t[0x85] = [3, M_ZP]
     t[0x95] = [3, M_ZPX]
     t[0x8D] = [3, M_ABS]
@@ -72,27 +215,52 @@ proc _table():
     t[0x99] = [3, M_ABSY]
     t[0x81] = [3, M_INDX]
     t[0x91] = [3, M_INDY]
-    # STX
+
+
+    #####################################################################
+    ## STX
+    #####################################################################
+
     t[0x86] = [4, M_ZP]
     t[0x96] = [4, M_ZPY]
     t[0x8E] = [4, M_ABS]
-    # STY
+
+
+    #####################################################################
+    ## STY
+    #####################################################################
+
     t[0x84] = [5, M_ZP]
     t[0x94] = [5, M_ZPX]
     t[0x8C] = [5, M_ABS]
-    # transfers
+
+
+    #####################################################################
+    ## Transfers
+    #####################################################################
+
     t[0xAA] = [6, M_IMP]
     t[0x8A] = [7, M_IMP]
     t[0xA8] = [8, M_IMP]
     t[0x98] = [9, M_IMP]
     t[0xBA] = [10, M_IMP]
     t[0x9A] = [11, M_IMP]
-    # stack
+
+
+    #####################################################################
+    ## Stack
+    #####################################################################
+
     t[0x48] = [12, M_IMP]
     t[0x08] = [13, M_IMP]
     t[0x68] = [14, M_IMP]
     t[0x28] = [15, M_IMP]
-    # ADC
+
+
+    #####################################################################
+    ## ADC
+    #####################################################################
+
     t[0x69] = [16, M_IMM]
     t[0x65] = [16, M_ZP]
     t[0x75] = [16, M_ZPX]
@@ -101,7 +269,12 @@ proc _table():
     t[0x79] = [16, M_ABSY]
     t[0x61] = [16, M_INDX]
     t[0x71] = [16, M_INDY]
-    # SBC
+
+
+    #####################################################################
+    ## SBC
+    #####################################################################
+
     t[0xE9] = [17, M_IMM]
     t[0xE5] = [17, M_ZP]
     t[0xF5] = [17, M_ZPX]
@@ -110,7 +283,12 @@ proc _table():
     t[0xF9] = [17, M_ABSY]
     t[0xE1] = [17, M_INDX]
     t[0xF1] = [17, M_INDY]
-    # AND
+
+
+    #####################################################################
+    ## AND
+    #####################################################################
+
     t[0x29] = [18, M_IMM]
     t[0x25] = [18, M_ZP]
     t[0x35] = [18, M_ZPX]
@@ -119,7 +297,12 @@ proc _table():
     t[0x39] = [18, M_ABSY]
     t[0x21] = [18, M_INDX]
     t[0x31] = [18, M_INDY]
-    # ORA
+
+
+    #####################################################################
+    ## ORA
+    #####################################################################
+
     t[0x09] = [19, M_IMM]
     t[0x05] = [19, M_ZP]
     t[0x15] = [19, M_ZPX]
@@ -128,7 +311,12 @@ proc _table():
     t[0x19] = [19, M_ABSY]
     t[0x01] = [19, M_INDX]
     t[0x11] = [19, M_INDY]
-    # EOR
+
+
+    #####################################################################
+    ## EOR
+    #####################################################################
+
     t[0x49] = [20, M_IMM]
     t[0x45] = [20, M_ZP]
     t[0x55] = [20, M_ZPX]
@@ -137,10 +325,20 @@ proc _table():
     t[0x59] = [20, M_ABSY]
     t[0x41] = [20, M_INDX]
     t[0x51] = [20, M_INDY]
-    # BIT
+
+
+    #####################################################################
+    ## BIT
+    #####################################################################
+
     t[0x24] = [21, M_ZP]
     t[0x2C] = [21, M_ABS]
-    # CMP
+
+
+    #####################################################################
+    ## CMP
+    #####################################################################
+
     t[0xC9] = [22, M_IMM]
     t[0xC5] = [22, M_ZP]
     t[0xD5] = [22, M_ZPX]
@@ -149,50 +347,104 @@ proc _table():
     t[0xD9] = [22, M_ABSY]
     t[0xC1] = [22, M_INDX]
     t[0xD1] = [22, M_INDY]
-    # CPX
+
+
+    #####################################################################
+    ## CPX
+    #####################################################################
+
     t[0xE0] = [23, M_IMM]
     t[0xE4] = [23, M_ZP]
     t[0xEC] = [23, M_ABS]
-    # CPY
+
+
+    #####################################################################
+    ## CPY
+    #####################################################################
+
     t[0xC0] = [24, M_IMM]
     t[0xC4] = [24, M_ZP]
     t[0xCC] = [24, M_ABS]
-    # INC / DEC
+
+
+    #####################################################################
+    ## INC
+    #####################################################################
+
     t[0xE6] = [25, M_ZP]
     t[0xF6] = [25, M_ZPX]
     t[0xEE] = [25, M_ABS]
     t[0xFE] = [25, M_ABSX]
+
+
+    #####################################################################
+    ## DEC
+    #####################################################################
+
     t[0xC6] = [26, M_ZP]
     t[0xD6] = [26, M_ZPX]
     t[0xCE] = [26, M_ABS]
     t[0xDE] = [26, M_ABSX]
-    # IN / DE registers
+
+
+    #####################################################################
+    ## Increment / decrement registers
+    #####################################################################
+
     t[0xE8] = [27, M_IMP]
-    t[0xCA] = [29, M_IMP]
     t[0xC8] = [28, M_IMP]
+    t[0xCA] = [29, M_IMP]
     t[0x88] = [30, M_IMP]
-    # ASL / LSR / ROL / ROR
+
+
+    #####################################################################
+    ## ASL
+    #####################################################################
+
     t[0x0A] = [31, M_ACC]
     t[0x06] = [31, M_ZP]
     t[0x16] = [31, M_ZPX]
     t[0x0E] = [31, M_ABS]
     t[0x1E] = [31, M_ABSX]
+
+
+    #####################################################################
+    ## LSR
+    #####################################################################
+
     t[0x4A] = [32, M_ACC]
     t[0x46] = [32, M_ZP]
     t[0x56] = [32, M_ZPX]
     t[0x4E] = [32, M_ABS]
     t[0x5E] = [32, M_ABSX]
+
+
+    #####################################################################
+    ## ROL
+    #####################################################################
+
     t[0x2A] = [33, M_ACC]
     t[0x26] = [33, M_ZP]
     t[0x36] = [33, M_ZPX]
     t[0x2E] = [33, M_ABS]
     t[0x3E] = [33, M_ABSX]
+
+
+    #####################################################################
+    ## ROR
+    #####################################################################
+
     t[0x6A] = [34, M_ACC]
     t[0x66] = [34, M_ZP]
     t[0x76] = [34, M_ZPX]
     t[0x6E] = [34, M_ABS]
     t[0x7E] = [34, M_ABSX]
-    # branches
+
+
+    #####################################################################
+    ## Branches
+    #####################################################################
+
     t[0x90] = [35, M_REL]
     t[0xB0] = [36, M_REL]
     t[0xF0] = [37, M_REL]
@@ -201,525 +453,2437 @@ proc _table():
     t[0x10] = [40, M_REL]
     t[0x50] = [41, M_REL]
     t[0x70] = [42, M_REL]
-    # jumps
+
+
+    #####################################################################
+    ## Jumps / subroutines
+    #####################################################################
+
     t[0x4C] = [43, M_ABS]
     t[0x6C] = [43, M_IND]
+
     t[0x20] = [44, M_ABS]
+
     t[0x60] = [45, M_IMP]
-    # system
+
+
+    #####################################################################
+    ## System
+    #####################################################################
+
     t[0x00] = [46, M_IMP]
     t[0x40] = [47, M_IMP]
     t[0xEA] = [48, M_IMP]
-    # flags
+
+
+    #####################################################################
+    ## Flags
+    #####################################################################
+
     t[0x18] = [49, M_IMP]
     t[0xD8] = [50, M_IMP]
     t[0x58] = [51, M_IMP]
     t[0xB8] = [52, M_IMP]
+
     t[0x38] = [53, M_IMP]
     t[0xF8] = [54, M_IMP]
     t[0x78] = [55, M_IMP]
+
+
     return t
+
 
 var _OPCODES = _table()
 
-## canonical NMOS 6502 base cycle counts (256 entries)
+
+#########################################################################
+## Canonical NMOS 6502 base cycle counts
+#########################################################################
+
 proc _load_cycles():
+
     let raw = "7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,3,3,5,0,4,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,0,3,5,0,3,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,0,3,5,0,4,2,2,0,5,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,0,6,0,0,3,3,3,0,2,0,2,0,4,4,4,0,2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0"
+
     let parts = split(raw, ",")
+
     let t = []
+
     var i = 0
+
     while i < 256:
         push(t, _atoi(parts[i]))
         i = i + 1
+
     return t
 
+
 proc _atoi(s):
+
     var v = 0
+
     for i in range(len(s)):
+
         let ch = s[i]
+
         if ch >= "0" and ch <= "9":
             v = v * 10 + (ord(ch) - 48)
+
     return v
+
 
 var _CYCLES = _load_cycles()
 
+
+#########################################################################
+## CPU
+#########################################################################
+
 class CPU:
+
+
+    #####################################################################
+    ## Initialization
+    #####################################################################
+
     proc init(self, bus):
+
         self.bus = bus
+
         self.regs = registers.Registers()
         self.status = flags.Status()
+
         self.halted = false
+
         self.cycles = 0
+
         self.irq_pending = false
         self.nmi_pending = false
 
+
+    #####################################################################
+    ## Bus access
+    #####################################################################
+
     proc read8(self, addr):
-        return self.bus.read8(addr)
+
+        return self.bus.read8(addr & 0xFFFF)
+
 
     proc write8(self, addr, value):
-        self.bus.write8(addr, value)
+
+        self.bus.write8(
+            addr & 0xFFFF,
+            value & 0xFF
+        )
+
 
     proc read16(self, addr):
-        return self.bus.read16(addr)
+
+        return self.bus.read16(addr & 0xFFFF)
+
+
+    #####################################################################
+    ## Reset
+    ##
+    ## NMOS 6502 reset state:
+    ##
+    ##   A  = 00
+    ##   X  = 00
+    ##   Y  = 00
+    ##   SP = FD
+    ##
+    ##   I = 1
+    ##
+    ## PC is loaded from:
+    ##
+    ##   $FFFC = low byte
+    ##   $FFFD = high byte
+    #####################################################################
 
     proc reset(self):
+
+        self.regs.a = 0x00
+        self.regs.x = 0x00
+        self.regs.y = 0x00
+
         self.regs.sp = 0xFD
+
         self.regs.pc = self.read16(0xFFFC)
-        self.status.set(0x00)
-        self.status.set_B(1)
-        self.status.set_I(1)
-        self.regs.a = 0
-        self.regs.x = 0
-        self.regs.y = 0
+
+        self.status.reset()
+
         self.halted = false
 
+        self.cycles = 0
+
+        self.irq_pending = false
+        self.nmi_pending = false
+
+
+    #####################################################################
+    ## Execute one instruction
+    #####################################################################
+
     proc step(self):
+
         if self.halted:
             return
+
+
+        #################################################################
+        ## Fetch opcode
+        #################################################################
+
         let code = self.read8(self.regs.pc)
-        self.regs.pc = (self.regs.pc + 1) & 0xFFFF
+
+        self.regs.pc = (
+            self.regs.pc + 1
+        ) & 0xFFFF
+
+
+        #################################################################
+        ## Decode
+        #################################################################
+
         let d = self.decode(code)
-        let extra = self.exec(d[0], d[1])
-        self.cycles = self.cycles + _CYCLES[code] + extra
-        # service interrupts between instructions
+
+        let id = d[0]
+        let mode = d[1]
+
+
+        #################################################################
+        ## Execute
+        #################################################################
+
+        let extra = self.exec(id, mode)
+
+
+        #################################################################
+        ## Cycle accounting
+        #################################################################
+
+        self.cycles = (
+            self.cycles +
+            _CYCLES[code] +
+            extra
+        )
+
+
+        #################################################################
+        ## Interrupts are serviced between instructions
+        ##
+        ## NMI has priority over IRQ.
+        #################################################################
+
         if self.nmi_pending:
+
             self.nmi_pending = false
+
             self.serve_interrupt(0xFFFA)
-        elif self.irq_pending and self.status.I() == 0:
+
+        elif (
+            self.irq_pending and
+            self.status.I() == 0
+        ):
+
             self.irq_pending = false
+
             self.serve_interrupt(0xFFFE)
 
-    proc run(self):
+
+    #####################################################################
+    ## Run CPU
+    ##
+    ## max_instructions:
+    ##
+    ##   Number of instructions to execute.
+    ##
+    ## Example:
+    ##
+    ##   c.run(200)
+    #####################################################################
+
+    proc run(self, max_instructions):
+
         var n = 0
-        while self.halted == false and n < 1000000:
+
+        while (
+            self.halted == false and
+            n < max_instructions
+        ):
+
             self.step()
+
             n = n + 1
 
-    # ---- legacy/soft interrupt interface (plan API) ----
+
+    #####################################################################
+    ## Run with safety limit
+    ##
+    ## Useful for compatibility with the older run() behavior.
+    #####################################################################
+
+    proc run_forever(self):
+
+        var n = 0
+
+        while (
+            self.halted == false and
+            n < 1000000
+        ):
+
+            self.step()
+
+            n = n + 1
+
+
+    #####################################################################
+    ## Legacy / software interrupt interface
+    #####################################################################
+
     proc interrupt(self):
+
         self.irq_pending = true
 
+
     proc nmi(self):
+
         self.nmi_pending = true
 
+
+    #####################################################################
+    ## Serve IRQ / NMI
+    ##
+    ## Stack order:
+    ##
+    ##   PCH
+    ##   PCL
+    ##   P
+    ##
+    ## For IRQ/NMI:
+    ##
+    ##   bit 5 = 1
+    ##   B     = 0
+    #####################################################################
+
     proc serve_interrupt(self, vector):
+
         self.push16(self.regs.pc)
-        self.push(self.status.get() | 0x30)
+
+        self.push(
+            self.status.to_push_byte(0)
+        )
+
         self.status.set_I(1)
+
         self.regs.pc = self.read16(vector)
+
         self.cycles = self.cycles + 7
 
+
+    #####################################################################
+    ## Stack operations
+    ##
+    ## Stack range:
+    ##
+    ##   $0100-$01FF
+    #####################################################################
+
     proc push(self, value):
-        self.write8(0x0100 | self.regs.sp, value & 0xFF)
-        self.regs.sp = (self.regs.sp - 1) & 0xFF
+
+        self.write8(
+            0x0100 | self.regs.sp,
+            value & 0xFF
+        )
+
+        self.regs.sp = (
+            self.regs.sp - 1
+        ) & 0xFF
+
 
     proc pull(self):
-        self.regs.sp = (self.regs.sp + 1) & 0xFF
-        return self.read8(0x0100 | self.regs.sp)
+
+        self.regs.sp = (
+            self.regs.sp + 1
+        ) & 0xFF
+
+        return self.read8(
+            0x0100 | self.regs.sp
+        )
+
+
+    #####################################################################
+    ## Push 16-bit value
+    ##
+    ## 6502 stack order:
+    ##
+    ##   high byte
+    ##   low byte
+    #####################################################################
 
     proc push16(self, value):
-        self.push((value >> 8) & 0xFF)
-        self.push(value & 0xFF)
+
+        self.push(
+            (value >> 8) & 0xFF
+        )
+
+        self.push(
+            value & 0xFF
+        )
+
+
+    #####################################################################
+    ## Pull 16-bit value
+    ##
+    ## Stack order:
+    ##
+    ##   low byte
+    ##   high byte
+    #####################################################################
 
     proc pull16(self):
-        let lo = self.pull()
-        let hi = self.pull()
-        return (hi << 8) | lo
 
-    # effective address for non-immediate memory modes; returns
-    # [addr, page_crossed] so indexed modes can charge the extra cycle
+        let lo = self.pull()
+
+        let hi = self.pull()
+
+        return (
+            (hi << 8) |
+            lo
+        )
+
+
+    #####################################################################
+    ## Effective address fetch
+    ##
+    ## Returns:
+    ##
+    ##   [effective_address, page_crossed]
+    #####################################################################
+
     proc fetch(self, mode):
-        if mode == 1:
-            let zp = self.read8(self.regs.pc)
-            self.regs.pc = (self.regs.pc + 1) & 0xFFFF
+
+
+        #################################################################
+        ## Zero page
+        #################################################################
+
+        if mode == M_ZP:
+
+            let zp = self.read8(
+                self.regs.pc
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
             _FETCH_SCRATCH[0] = zp
+
             _FETCH_SCRATCH[1] = 0
+
             return _FETCH_SCRATCH
-        if mode == 2:
-            let zp = self.read8(self.regs.pc)
-            self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            _FETCH_SCRATCH[0] = (zp + self.regs.x) & 0xFF
+
+
+        #################################################################
+        ## Zero page,X
+        #################################################################
+
+        if mode == M_ZPX:
+
+            let zp = self.read8(
+                self.regs.pc
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
+            _FETCH_SCRATCH[0] = (
+                zp + self.regs.x
+            ) & 0xFF
+
             _FETCH_SCRATCH[1] = 0
+
             return _FETCH_SCRATCH
-        if mode == 3:
-            let zp = self.read8(self.regs.pc)
-            self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            _FETCH_SCRATCH[0] = (zp + self.regs.y) & 0xFF
+
+
+        #################################################################
+        ## Zero page,Y
+        #################################################################
+
+        if mode == M_ZPY:
+
+            let zp = self.read8(
+                self.regs.pc
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
+            _FETCH_SCRATCH[0] = (
+                zp + self.regs.y
+            ) & 0xFF
+
             _FETCH_SCRATCH[1] = 0
+
             return _FETCH_SCRATCH
-        if mode == 4:
-            let lo = self.read8(self.regs.pc)
-            let hi = self.read8(self.regs.pc + 1)
-            self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            _FETCH_SCRATCH[0] = (hi << 8) | lo
+
+
+        #################################################################
+        ## Absolute
+        #################################################################
+
+        if mode == M_ABS:
+
+            let lo = self.read8(
+                self.regs.pc
+            )
+
+            let hi = self.read8(
+                self.regs.pc + 1
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 2
+            ) & 0xFFFF
+
+            _FETCH_SCRATCH[0] = (
+                hi << 8
+            ) | lo
+
             _FETCH_SCRATCH[1] = 0
+
             return _FETCH_SCRATCH
-        if mode == 5:
-            let lo = self.read8(self.regs.pc)
-            let hi = self.read8(self.regs.pc + 1)
-            self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            let base = (hi << 8) | lo
-            let eff = (base + self.regs.x) & 0xFFFF
+
+
+        #################################################################
+        ## Absolute,X
+        #################################################################
+
+        if mode == M_ABSX:
+
+            let lo = self.read8(
+                self.regs.pc
+            )
+
+            let hi = self.read8(
+                self.regs.pc + 1
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 2
+            ) & 0xFFFF
+
+            let base = (
+                hi << 8
+            ) | lo
+
+            let eff = (
+                base + self.regs.x
+            ) & 0xFFFF
+
             _FETCH_SCRATCH[0] = eff
-            _FETCH_SCRATCH[1] = self._pcross(base, eff)
+
+            _FETCH_SCRATCH[1] = (
+                self._pcross(base, eff)
+            )
+
             return _FETCH_SCRATCH
-        if mode == 6:
-            let lo = self.read8(self.regs.pc)
-            let hi = self.read8(self.regs.pc + 1)
-            self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            let base = (hi << 8) | lo
-            let eff = (base + self.regs.y) & 0xFFFF
+
+
+        #################################################################
+        ## Absolute,Y
+        #################################################################
+
+        if mode == M_ABSY:
+
+            let lo = self.read8(
+                self.regs.pc
+            )
+
+            let hi = self.read8(
+                self.regs.pc + 1
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 2
+            ) & 0xFFFF
+
+            let base = (
+                hi << 8
+            ) | lo
+
+            let eff = (
+                base + self.regs.y
+            ) & 0xFFFF
+
             _FETCH_SCRATCH[0] = eff
-            _FETCH_SCRATCH[1] = self._pcross(base, eff)
+
+            _FETCH_SCRATCH[1] = (
+                self._pcross(base, eff)
+            )
+
             return _FETCH_SCRATCH
-        if mode == 7:
-            let zp = self.read8(self.regs.pc)
-            self.regs.pc = (self.regs.pc + 1) & 0xFFFF
-            let ptr = (zp + self.regs.x) & 0xFF
+
+
+        #################################################################
+        ## (zero page,X)
+        #################################################################
+
+        if mode == M_INDX:
+
+            let zp = self.read8(
+                self.regs.pc
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
+            let ptr = (
+                zp + self.regs.x
+            ) & 0xFF
+
             let lo = self.read8(ptr)
-            let hi = self.read8((ptr + 1) & 0xFF)
-            _FETCH_SCRATCH[0] = (hi << 8) | lo
+
+            let hi = self.read8(
+                (ptr + 1) & 0xFF
+            )
+
+            _FETCH_SCRATCH[0] = (
+                hi << 8
+            ) | lo
+
             _FETCH_SCRATCH[1] = 0
+
             return _FETCH_SCRATCH
-        if mode == 8:
-            let zp = self.read8(self.regs.pc)
-            self.regs.pc = (self.regs.pc + 1) & 0xFFFF
+
+
+        #################################################################
+        ## (zero page),Y
+        #################################################################
+
+        if mode == M_INDY:
+
+            let zp = self.read8(
+                self.regs.pc
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
             let lo = self.read8(zp)
-            let hi = self.read8((zp + 1) & 0xFF)
-            let base = (hi << 8) | lo
-            let eff = (base + self.regs.y) & 0xFFFF
+
+            let hi = self.read8(
+                (zp + 1) & 0xFF
+            )
+
+            let base = (
+                hi << 8
+            ) | lo
+
+            let eff = (
+                base + self.regs.y
+            ) & 0xFFFF
+
             _FETCH_SCRATCH[0] = eff
-            _FETCH_SCRATCH[1] = self._pcross(base, eff)
+
+            _FETCH_SCRATCH[1] = (
+                self._pcross(base, eff)
+            )
+
             return _FETCH_SCRATCH
-        if mode == 10:
-            let lo = self.read8(self.regs.pc)
-            let hi = self.read8(self.regs.pc + 1)
-            self.regs.pc = (self.regs.pc + 2) & 0xFFFF
-            # real 6502 bug: JMP ($xxFF) reads the high byte back on the
-            # same page ($xx00), not from the next page
-            let ptr = (hi << 8) | lo
-            _FETCH_SCRATCH[0] = self.read8(ptr) | (self.read8((ptr & 0xFF00) | ((ptr + 1) & 0xFF)) << 8)
+
+
+        #################################################################
+        ## Absolute indirect
+        ##
+        ## Real NMOS 6502 bug:
+        ##
+        ## JMP ($xxFF)
+        ##
+        ## reads the high byte from:
+        ##
+        ## $xx00
+        ##
+        ## rather than:
+        ##
+        ## $(xx + 1)00
+        #################################################################
+
+        if mode == M_IND:
+
+            let lo = self.read8(
+                self.regs.pc
+            )
+
+            let hi = self.read8(
+                self.regs.pc + 1
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 2
+            ) & 0xFFFF
+
+            let ptr = (
+                hi << 8
+            ) | lo
+
+            let target_lo = self.read8(ptr)
+
+            let target_hi = self.read8(
+                (ptr & 0xFF00) |
+                ((ptr + 1) & 0xFF)
+            )
+
+            _FETCH_SCRATCH[0] = (
+                target_hi << 8
+            ) | target_lo
+
             _FETCH_SCRATCH[1] = 0
+
             return _FETCH_SCRATCH
+
+
+        #################################################################
+        ## Default
+        #################################################################
+
         _FETCH_SCRATCH[0] = 0
         _FETCH_SCRATCH[1] = 0
+
         return _FETCH_SCRATCH
 
-    # page boundary crossed by an indexed effective address?
+
+    #####################################################################
+    ## Page-cross detection
+    #####################################################################
+
     proc _pcross(self, base, eff):
-        if (base & 0xFF00) != (eff & 0xFF00):
+
+        if (
+            (base & 0xFF00) !=
+            (eff & 0xFF00)
+        ):
+
             return 1
+
         return 0
 
-    # signed value from an 8-bit byte
+
+    #####################################################################
+    ## Signed value from an 8-bit byte
+    #####################################################################
+
     proc sbyte(self, b):
+
         b = b & 0xFF
+
         if b & 0x80:
             return b - 0x100
+
         return b
 
+
+    #####################################################################
+    ## Execute decoded instruction
+    #####################################################################
+
     proc exec(self, id, mode):
-        # immediate operand
-        if mode == 0:
-            let operand = self.read8(self.regs.pc)
-            self.regs.pc = (self.regs.pc + 1) & 0xFFFF
+
+
+        #################################################################
+        ## Immediate
+        #################################################################
+
+        if mode == M_IMM:
+
+            let operand = self.read8(
+                self.regs.pc
+            )
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
             self.op1(id, operand)
+
             return 0
-        # accumulator shifts operate on register A
-        if mode == 9:
-            self.shift(id, self.regs.a, nil)
+
+
+        #################################################################
+        ## Accumulator
+        #################################################################
+
+        if mode == M_ACC:
+
+            self.shift(
+                id,
+                self.regs.a,
+                nil
+            )
+
             return 0
-        # branch
-        if mode == 11:
+
+
+        #################################################################
+        ## Relative branch
+        #################################################################
+
+        if mode == M_REL:
+
             return self.branch(id)
-        # implied: nothing to fetch
-        if mode == 12:
+
+
+        #################################################################
+        ## Implied
+        #################################################################
+
+        if mode == M_IMP:
+
             self.op0(id)
+
             return 0
-        # memory modes
+
+
+        #################################################################
+        ## Memory-addressed modes
+        #################################################################
+
         let fa = self.fetch(mode)
+
         let addr = fa[0]
-        if id == 3 or id == 4 or id == 5:
-            # pure stores: write without a dummy read (input ports have side effects)
-            self.op_with_addr(id, 0, addr)
+
+
+        #################################################################
+        ## Pure stores
+        ##
+        ## Do not perform a read first.
+        ##
+        ## Memory-mapped I/O may have read side effects.
+        #################################################################
+
+        if (
+            id == 3 or
+            id == 4 or
+            id == 5
+        ):
+
+            self.op_with_addr(
+                id,
+                0,
+                addr
+            )
+
         else:
+
             let operand = self.read8(addr)
-            self.op_with_addr(id, operand, addr)
-        # page-cross penalty: NMOS 6502 charges +1 for indexed reads that
-        # cross a page (loads/arith/compare/logical in abs,X abs,Y (zp),Y);
-        # stores and read-modify-writes already include it in their base
+
+            self.op_with_addr(
+                id,
+                operand,
+                addr
+            )
+
+
+        #################################################################
+        ## Indexed page-cross penalty
+        ##
+        ## Applies to indexed READ operations.
+        ##
+        ## Stores and read-modify-write instructions already have their
+        ## timing represented in the base cycle table.
+        #################################################################
+
         if fa[1] == 1:
-            if id == 0 or id == 1 or id == 2:
+
+            if (
+                id == 0 or
+                id == 1 or
+                id == 2
+            ):
+
                 return 1
-            if id >= 16 and id <= 20:
+
+            if (
+                id >= 16 and
+                id <= 20
+            ):
+
                 return 1
+
             if id == 22:
+
                 return 1
+
+
         return 0
 
+
+    #####################################################################
+    ## Decode opcode
+    #####################################################################
+
     proc decode(self, code):
-        return _OPCODES[code]
 
-    # ------------------------------------------------------------------
-    # implied mode
-    # ------------------------------------------------------------------
+        return _OPCODES[
+            code & 0xFF
+        ]
+
+
+    #####################################################################
+    ## Implied instructions
+    #####################################################################
+
     proc op0(self, id):
-        if id == 6:            # TAX
-            self.regs.x = self.regs.a & 0xFF
-            self.status.upd_nz(self.regs.x)
-        elif id == 7:          # TXA
-            self.regs.a = self.regs.x & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 8:          # TAY
-            self.regs.y = self.regs.a & 0xFF
-            self.status.upd_nz(self.regs.y)
-        elif id == 9:          # TYA
-            self.regs.a = self.regs.y & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 10:         # TSX
-            self.regs.x = self.regs.sp & 0xFF
-            self.status.upd_nz(self.regs.x)
-        elif id == 11:         # TXS
-            self.regs.sp = self.regs.x & 0xFF
-        elif id == 12:         # PHA
-            self.push(self.regs.a)
-        elif id == 13:         # PHP
-            self.push(self.status.get() | 0x30)
-        elif id == 14:         # PLA
-            self.regs.a = self.pull() & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 15:         # PLP
-            self.status.set(self.pull())
-        elif id == 27:         # INX
-            self.regs.x = (self.regs.x + 1) & 0xFF
-            self.status.upd_nz(self.regs.x)
-        elif id == 28:         # INY
-            self.regs.y = (self.regs.y + 1) & 0xFF
-            self.status.upd_nz(self.regs.y)
-        elif id == 29:         # DEX
-            self.regs.x = (self.regs.x - 1) & 0xFF
-            self.status.upd_nz(self.regs.x)
-        elif id == 30:         # DEY
-            self.regs.y = (self.regs.y - 1) & 0xFF
-            self.status.upd_nz(self.regs.y)
-        elif id == 45:         # RTS
+
+
+        #################################################################
+        ## TAX
+        #################################################################
+
+        if id == 6:
+
+            self.regs.x = (
+                self.regs.a
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## TXA
+        #################################################################
+
+        elif id == 7:
+
+            self.regs.a = (
+                self.regs.x
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## TAY
+        #################################################################
+
+        elif id == 8:
+
+            self.regs.y = (
+                self.regs.a
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.y
+            )
+
+
+        #################################################################
+        ## TYA
+        #################################################################
+
+        elif id == 9:
+
+            self.regs.a = (
+                self.regs.y
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## TSX
+        #################################################################
+
+        elif id == 10:
+
+            self.regs.x = (
+                self.regs.sp
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## TXS
+        #################################################################
+
+        elif id == 11:
+
+            self.regs.sp = (
+                self.regs.x
+            ) & 0xFF
+
+
+        #################################################################
+        ## PHA
+        #################################################################
+
+        elif id == 12:
+
+            self.push(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## PHP
+        ##
+        ## Stack byte:
+        ##
+        ##   N V 1 1 D I Z C
+        #################################################################
+
+        elif id == 13:
+
+            self.push(
+                self.status.to_push_byte(1)
+            )
+
+
+        #################################################################
+        ## PLA
+        #################################################################
+
+        elif id == 14:
+
+            self.regs.a = (
+                self.pull()
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## PLP
+        #################################################################
+
+        elif id == 15:
+
+            self.status.from_byte(
+                self.pull()
+            )
+
+
+        #################################################################
+        ## INX
+        #################################################################
+
+        elif id == 27:
+
+            self.regs.x = (
+                self.regs.x + 1
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## INY
+        #################################################################
+
+        elif id == 28:
+
+            self.regs.y = (
+                self.regs.y + 1
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.y
+            )
+
+
+        #################################################################
+        ## DEX
+        #################################################################
+
+        elif id == 29:
+
+            self.regs.x = (
+                self.regs.x - 1
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## DEY
+        #################################################################
+
+        elif id == 30:
+
+            self.regs.y = (
+                self.regs.y - 1
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.y
+            )
+
+
+        #################################################################
+        ## RTS
+        #################################################################
+
+        elif id == 45:
+
             let ret = self.pull16()
-            self.regs.pc = (ret + 1) & 0xFFFF
-        elif id == 46:         # BRK
-            self.push16(self.regs.pc)
-            self.push(self.status.get() | 0x30)
+
+            self.regs.pc = (
+                ret + 1
+            ) & 0xFFFF
+
+
+        #################################################################
+        ## BRK
+        ##
+        ## BRK is a two-byte instruction.
+        ##
+        ## The opcode fetch has already advanced PC by one.
+        ## Advance once more to consume the padding byte before pushing.
+        ##
+        ## Stack status:
+        ##
+        ##   bit 5 = 1
+        ##   B     = 1
+        ##
+        ## BRK does NOT halt the CPU.
+        #################################################################
+
+        elif id == 46:
+
+            self.regs.pc = (
+                self.regs.pc + 1
+            ) & 0xFFFF
+
+            self.push16(
+                self.regs.pc
+            )
+
+            self.push(
+                self.status.to_push_byte(1)
+            )
+
             self.status.set_I(1)
-            self.regs.pc = self.read16(0xFFFE)
-            self.halted = true
-        elif id == 47:         # RTI
-            self.status.set(self.pull())
+
+            self.regs.pc = self.read16(
+                0xFFFE
+            )
+
+
+        #################################################################
+        ## RTI
+        #################################################################
+
+        elif id == 47:
+
+            self.status.from_byte(
+                self.pull()
+            )
+
             self.regs.pc = self.pull16()
-        elif id == 49:         # CLC
+
+
+        #################################################################
+        ## NOP
+        #################################################################
+
+        elif id == 48:
+
+            pass
+
+
+        #################################################################
+        ## CLC
+        #################################################################
+
+        elif id == 49:
+
             self.status.set_C(0)
-        elif id == 50:         # CLD
+
+
+        #################################################################
+        ## CLD
+        #################################################################
+
+        elif id == 50:
+
             self.status.set_D(0)
-        elif id == 51:         # CLI
+
+
+        #################################################################
+        ## CLI
+        #################################################################
+
+        elif id == 51:
+
             self.status.set_I(0)
-        elif id == 52:         # CLV
+
+
+        #################################################################
+        ## CLV
+        #################################################################
+
+        elif id == 52:
+
             self.status.set_V(0)
-        elif id == 53:         # SEC
+
+
+        #################################################################
+        ## SEC
+        #################################################################
+
+        elif id == 53:
+
             self.status.set_C(1)
-        elif id == 54:         # SED
+
+
+        #################################################################
+        ## SED
+        #################################################################
+
+        elif id == 54:
+
             self.status.set_D(1)
-        elif id == 55:         # SEI
+
+
+        #################################################################
+        ## SEI
+        #################################################################
+
+        elif id == 55:
+
             self.status.set_I(1)
 
-    # ------------------------------------------------------------------
-    # immediate mode operands
-    # ------------------------------------------------------------------
-    proc op1(self, id, operand):
-        if id == 0:            # LDA
-            self.regs.a = operand & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 1:          # LDX
-            self.regs.x = operand & 0xFF
-            self.status.upd_nz(self.regs.x)
-        elif id == 2:          # LDY
-            self.regs.y = operand & 0xFF
-            self.status.upd_nz(self.regs.y)
-        elif id == 16:         # ADC
-            self.adc(operand)
-        elif id == 17:         # SBC
-            self.sbc(operand)
-        elif id == 18:         # AND
-            self.regs.a = (self.regs.a & operand) & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 19:         # ORA
-            self.regs.a = (self.regs.a | operand) & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 20:         # EOR
-            self.regs.a = (self.regs.a ^ operand) & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 22:         # CMP
-            self.compare(self.regs.a, operand)
-        elif id == 23:         # CPX
-            self.compare(self.regs.x, operand)
-        elif id == 24:         # CPY
-            self.compare(self.regs.y, operand)
 
-    # ------------------------------------------------------------------
-    # memory-addressed operations
-    # ------------------------------------------------------------------
-    proc op_with_addr(self, id, operand, addr):
-        if id == 0:            # LDA
-            self.regs.a = operand & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 1:          # LDX
-            self.regs.x = operand & 0xFF
-            self.status.upd_nz(self.regs.x)
-        elif id == 2:          # LDY
-            self.regs.y = operand & 0xFF
-            self.status.upd_nz(self.regs.y)
-        elif id == 3:          # STA
-            self.write8(addr, self.regs.a)
-        elif id == 4:          # STX
-            self.write8(addr, self.regs.x)
-        elif id == 5:          # STY
-            self.write8(addr, self.regs.y)
-        elif id == 16:         # ADC
+    #####################################################################
+    ## Immediate operations
+    #####################################################################
+
+    proc op1(self, id, operand):
+
+
+        #################################################################
+        ## LDA
+        #################################################################
+
+        if id == 0:
+
+            self.regs.a = (
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## LDX
+        #################################################################
+
+        elif id == 1:
+
+            self.regs.x = (
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## LDY
+        #################################################################
+
+        elif id == 2:
+
+            self.regs.y = (
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.y
+            )
+
+
+        #################################################################
+        ## ADC
+        #################################################################
+
+        elif id == 16:
+
             self.adc(operand)
-        elif id == 17:         # SBC
+
+
+        #################################################################
+        ## SBC
+        #################################################################
+
+        elif id == 17:
+
             self.sbc(operand)
-        elif id == 18:         # AND
-            self.regs.a = (self.regs.a & operand) & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 19:         # ORA
-            self.regs.a = (self.regs.a | operand) & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 20:         # EOR
-            self.regs.a = (self.regs.a ^ operand) & 0xFF
-            self.status.upd_nz(self.regs.a)
-        elif id == 21:         # BIT
-            let res = (self.regs.a & operand) & 0xFF
+
+
+        #################################################################
+        ## AND
+        #################################################################
+
+        elif id == 18:
+
+            self.regs.a = (
+                self.regs.a &
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## ORA
+        #################################################################
+
+        elif id == 19:
+
+            self.regs.a = (
+                self.regs.a |
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## EOR
+        #################################################################
+
+        elif id == 20:
+
+            self.regs.a = (
+                self.regs.a ^
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## CMP
+        #################################################################
+
+        elif id == 22:
+
+            self.compare(
+                self.regs.a,
+                operand
+            )
+
+
+        #################################################################
+        ## CPX
+        #################################################################
+
+        elif id == 23:
+
+            self.compare(
+                self.regs.x,
+                operand
+            )
+
+
+        #################################################################
+        ## CPY
+        #################################################################
+
+        elif id == 24:
+
+            self.compare(
+                self.regs.y,
+                operand
+            )
+
+
+    #####################################################################
+    ## Memory-addressed operations
+    #####################################################################
+
+    proc op_with_addr(
+        self,
+        id,
+        operand,
+        addr
+    ):
+
+
+        #################################################################
+        ## LDA
+        #################################################################
+
+        if id == 0:
+
+            self.regs.a = (
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## LDX
+        #################################################################
+
+        elif id == 1:
+
+            self.regs.x = (
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## LDY
+        #################################################################
+
+        elif id == 2:
+
+            self.regs.y = (
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.y
+            )
+
+
+        #################################################################
+        ## STA
+        #################################################################
+
+        elif id == 3:
+
+            self.write8(
+                addr,
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## STX
+        #################################################################
+
+        elif id == 4:
+
+            self.write8(
+                addr,
+                self.regs.x
+            )
+
+
+        #################################################################
+        ## STY
+        #################################################################
+
+        elif id == 5:
+
+            self.write8(
+                addr,
+                self.regs.y
+            )
+
+
+        #################################################################
+        ## ADC
+        #################################################################
+
+        elif id == 16:
+
+            self.adc(operand)
+
+
+        #################################################################
+        ## SBC
+        #################################################################
+
+        elif id == 17:
+
+            self.sbc(operand)
+
+
+        #################################################################
+        ## AND
+        #################################################################
+
+        elif id == 18:
+
+            self.regs.a = (
+                self.regs.a &
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## ORA
+        #################################################################
+
+        elif id == 19:
+
+            self.regs.a = (
+                self.regs.a |
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## EOR
+        #################################################################
+
+        elif id == 20:
+
+            self.regs.a = (
+                self.regs.a ^
+                operand
+            ) & 0xFF
+
+            self.status.upd_nz(
+                self.regs.a
+            )
+
+
+        #################################################################
+        ## BIT
+        ##
+        ## Z = A & operand == 0
+        ## N = operand bit 7
+        ## V = operand bit 6
+        #################################################################
+
+        elif id == 21:
+
+            let res = (
+                self.regs.a &
+                operand
+            ) & 0xFF
+
             if res == 0:
+
                 self.status.set_Z(1)
+
             else:
+
                 self.status.set_Z(0)
-            self.status.set_N(operand & 0x80)
-            self.status.set_V(operand & 0x40)
-        elif id == 22:         # CMP
-            self.compare(self.regs.a, operand)
-        elif id == 23:         # CPX
-            self.compare(self.regs.x, operand)
-        elif id == 24:         # CPY
-            self.compare(self.regs.y, operand)
-        elif id == 25:         # INC
-            let nv = (operand + 1) & 0xFF
-            self.write8(addr, nv)
+
+            self.status.set_N(
+                operand & 0x80
+            )
+
+            self.status.set_V(
+                operand & 0x40
+            )
+
+
+        #################################################################
+        ## CMP
+        #################################################################
+
+        elif id == 22:
+
+            self.compare(
+                self.regs.a,
+                operand
+            )
+
+
+        #################################################################
+        ## CPX
+        #################################################################
+
+        elif id == 23:
+
+            self.compare(
+                self.regs.x,
+                operand
+            )
+
+
+        #################################################################
+        ## CPY
+        #################################################################
+
+        elif id == 24:
+
+            self.compare(
+                self.regs.y,
+                operand
+            )
+
+
+        #################################################################
+        ## INC
+        #################################################################
+
+        elif id == 25:
+
+            let nv = (
+                operand + 1
+            ) & 0xFF
+
+            self.write8(
+                addr,
+                nv
+            )
+
             self.status.upd_nz(nv)
-        elif id == 26:         # DEC
-            let nv = (operand - 1) & 0xFF
-            self.write8(addr, nv)
+
+
+        #################################################################
+        ## DEC
+        #################################################################
+
+        elif id == 26:
+
+            let nv = (
+                operand - 1
+            ) & 0xFF
+
+            self.write8(
+                addr,
+                nv
+            )
+
             self.status.upd_nz(nv)
-        elif id == 31 or id == 32 or id == 33 or id == 34:   # shifts on memory
-            self.shift(id, operand, addr)
-        elif id == 43:         # JMP (absolute or indirect)
-            self.regs.pc = addr & 0xFFFF
-        elif id == 44:         # JSR
-            self.push16((self.regs.pc - 1) & 0xFFFF)
-            self.regs.pc = addr & 0xFFFF
+
+
+        #################################################################
+        ## Memory shifts
+        #################################################################
+
+        elif (
+            id == 31 or
+            id == 32 or
+            id == 33 or
+            id == 34
+        ):
+
+            self.shift(
+                id,
+                operand,
+                addr
+            )
+
+
+        #################################################################
+        ## JMP
+        #################################################################
+
+        elif id == 43:
+
+            self.regs.pc = (
+                addr
+            ) & 0xFFFF
+
+
+        #################################################################
+        ## JSR
+        ##
+        ## Push address of final byte of JSR instruction.
+        #################################################################
+
+        elif id == 44:
+
+            self.push16(
+                (
+                    self.regs.pc - 1
+                ) & 0xFFFF
+            )
+
+            self.regs.pc = (
+                addr
+            ) & 0xFFFF
+
+
+    #####################################################################
+    ## ADC
+    ##
+    ## Selects:
+    ##
+    ##   Binary mode
+    ##
+    ## or:
+    ##
+    ##   NMOS decimal mode
+    #####################################################################
 
     proc adc(self, operand):
-        let c = self.status.C()
-        let sum = self.regs.a + (operand & 0xFF) + c
-        let masked = sum & 0xFF
-        let vbits = (self.regs.a ^ masked) & ((operand & 0xFF) ^ masked) & 0x80
-        if sum > 0xFF:
-            self.status.set_C(1)
+
+        if self.status.D():
+
+            self.adc_decimal_nmos(operand)
+
         else:
+
+            self.adc_binary(operand)
+
+
+    #####################################################################
+    ## Binary ADC
+    ##
+    ## A + M + C
+    #####################################################################
+
+    proc adc_binary(self, operand):
+
+        let a = self.regs.a & 0xFF
+
+        let b = operand & 0xFF
+
+        let c = self.status.C()
+
+        let sum = a + b + c
+
+        let result = sum & 0xFF
+
+
+        #################################################################
+        ## Carry
+        #################################################################
+
+        if sum > 0xFF:
+
+            self.status.set_C(1)
+
+        else:
+
             self.status.set_C(0)
-        self.status.set_V(vbits)
-        self.status.upd_nz(masked)
-        self.regs.a = masked
+
+
+        #################################################################
+        ## Overflow
+        ##
+        ## Overflow when:
+        ##
+        ##   inputs have same sign
+        ##
+        ## and:
+        ##
+        ##   result has different sign
+        #################################################################
+
+        let overflow = (
+            ~(a ^ b) &
+            (a ^ result) &
+            0x80
+        )
+
+        self.status.set_V(
+            overflow
+        )
+
+
+        #################################################################
+        ## N / Z
+        #################################################################
+
+        self.status.upd_nz(
+            result
+        )
+
+
+        #################################################################
+        ## Store result
+        #################################################################
+
+        self.regs.a = result
+
+
+    #####################################################################
+    ## NMOS Decimal ADC
+    ##
+    ## Performs:
+    ##
+    ##   A + operand + Carry
+    ##
+    ## using BCD correction.
+    ##
+    ## NMOS decimal flag behavior:
+    ##
+    ##   V = binary overflow
+    ##   N = bit 7 of binary intermediate result
+    ##   Z = binary intermediate result == 0
+    ##   C = decimal carry
+    ##
+    ## This intentionally differs from CMOS 65C02 semantics.
+    #####################################################################
+
+    proc adc_decimal_nmos(self, operand):
+
+        let a = self.regs.a & 0xFF
+
+        let b = operand & 0xFF
+
+        let c = self.status.C()
+
+
+        #################################################################
+        ## First perform binary addition.
+        ##
+        ## NMOS N/Z/V are derived from this binary result.
+        #################################################################
+
+        let binary_sum = a + b + c
+
+        let binary_result = (
+            binary_sum & 0xFF
+        )
+
+
+        #################################################################
+        ## Binary overflow
+        #################################################################
+
+        let overflow = (
+            ~(a ^ b) &
+            (a ^ binary_result) &
+            0x80
+        )
+
+        self.status.set_V(
+            overflow
+        )
+
+
+        #################################################################
+        ## NMOS N/Z behavior
+        #################################################################
+
+        self.status.upd_nz(
+            binary_result
+        )
+
+
+        #################################################################
+        ## Decimal correction
+        #################################################################
+
+        var decimal_sum = binary_sum
+
+
+        #################################################################
+        ## Low nibble correction
+        #################################################################
+
+        if (
+            ((a & 0x0F) +
+            (b & 0x0F) +
+            c) > 9
+        ):
+
+            decimal_sum = (
+                decimal_sum + 0x06
+            )
+
+
+        #################################################################
+        ## High-digit correction
+        #################################################################
+
+        if decimal_sum > 0x99:
+
+            decimal_sum = (
+                decimal_sum + 0x60
+            )
+
+
+        #################################################################
+        ## Decimal carry
+        #################################################################
+
+        if decimal_sum > 0xFF:
+
+            self.status.set_C(1)
+
+        else:
+
+            self.status.set_C(0)
+
+
+        #################################################################
+        ## Store corrected BCD result
+        #################################################################
+
+        self.regs.a = (
+            decimal_sum
+        ) & 0xFF
+
+
+    #####################################################################
+    ## SBC
+    ##
+    ## Selects:
+    ##
+    ##   Binary mode
+    ##
+    ## or:
+    ##
+    ##   NMOS decimal mode
+    #####################################################################
 
     proc sbc(self, operand):
-        let c = self.status.C()
-        let complement = (operand & 0xFF) ^ 0xFF
-        let sum = self.regs.a + complement + c
-        let masked = sum & 0xFF
-        let vbits = (self.regs.a ^ masked) & (complement ^ masked) & 0x80
-        if sum < 0x100:
-            self.status.set_C(0)
+
+        if self.status.D():
+
+            self.sbc_decimal_nmos(operand)
+
         else:
+
+            self.sbc_binary(operand)
+
+
+    #####################################################################
+    ## Binary SBC
+    ##
+    ## A - M - (1 - C)
+    ##
+    ## Carry semantics:
+    ##
+    ##   C = 1 -> no borrow
+    ##   C = 0 -> borrow occurred
+    #####################################################################
+
+    proc sbc_binary(self, operand):
+
+        let a = self.regs.a & 0xFF
+
+        let b = operand & 0xFF
+
+        let c = self.status.C()
+
+        let borrow = 1 - c
+
+        let diff = (
+            a - b - borrow
+        )
+
+        let result = (
+            diff & 0xFF
+        )
+
+
+        #################################################################
+        ## Carry = no borrow
+        #################################################################
+
+        if diff >= 0:
+
             self.status.set_C(1)
-        self.status.set_V(vbits)
-        self.status.upd_nz(masked)
-        self.regs.a = masked
+
+        else:
+
+            self.status.set_C(0)
+
+
+        #################################################################
+        ## Overflow
+        ##
+        ## Subtraction overflow when:
+        ##
+        ##   A and operand have different signs
+        ##
+        ## and:
+        ##
+        ##   result sign differs from A
+        #################################################################
+
+        let overflow = (
+            (a ^ result) &
+            (a ^ b) &
+            0x80
+        )
+
+        self.status.set_V(
+            overflow
+        )
+
+
+        #################################################################
+        ## N / Z
+        #################################################################
+
+        self.status.upd_nz(
+            result
+        )
+
+
+        #################################################################
+        ## Store result
+        #################################################################
+
+        self.regs.a = result
+
+
+    #####################################################################
+    ## NMOS Decimal SBC
+    ##
+    ## Performs:
+    ##
+    ##   A - operand - (1 - Carry)
+    ##
+    ## using BCD correction.
+    ##
+    ## NMOS decimal behavior:
+    ##
+    ##   V = binary subtraction overflow
+    ##   N = bit 7 of binary intermediate result
+    ##   Z = binary intermediate result == 0
+    ##   C = decimal no-borrow condition
+    ##
+    ## The decimal result is BCD-adjusted after binary flag generation.
+    #####################################################################
+
+    proc sbc_decimal_nmos(self, operand):
+
+        let a = self.regs.a & 0xFF
+
+        let b = operand & 0xFF
+
+        let c = self.status.C()
+
+        let borrow = 1 - c
+
+
+        #################################################################
+        ## Binary subtraction first.
+        ##
+        ## NMOS N/Z/V use this binary intermediate result.
+        #################################################################
+
+        let binary_diff = (
+            a - b - borrow
+        )
+
+        let binary_result = (
+            binary_diff & 0xFF
+        )
+
+
+        #################################################################
+        ## Binary overflow
+        #################################################################
+
+        let overflow = (
+            (a ^ binary_result) &
+            (a ^ b) &
+            0x80
+        )
+
+        self.status.set_V(
+            overflow
+        )
+
+
+        #################################################################
+        ## NMOS N/Z behavior
+        #################################################################
+
+        self.status.upd_nz(
+            binary_result
+        )
+
+
+        #################################################################
+        ## Decimal subtraction
+        ##
+        ## Perform correction nibble by nibble.
+        #################################################################
+
+        var low = (
+            (a & 0x0F) -
+            (b & 0x0F) -
+            borrow
+        )
+
+        var high = (
+            ((a >> 4) & 0x0F) -
+            ((b >> 4) & 0x0F)
+        )
+
+
+        #################################################################
+        ## Borrow from high BCD digit
+        #################################################################
+
+        if low < 0:
+
+            low = low + 10
+
+            high = high - 1
+
+
+        #################################################################
+        ## Final decimal borrow / carry
+        #################################################################
+
+        if high < 0:
+
+            high = high + 10
+
+            self.status.set_C(0)
+
+        else:
+
+            self.status.set_C(1)
+
+
+        #################################################################
+        ## Rebuild BCD result
+        #################################################################
+
+        self.regs.a = (
+            (
+                (high << 4) |
+                low
+            ) & 0xFF
+        )
+
+
+    #####################################################################
+    ## Compare
+    ##
+    ## Performs:
+    ##
+    ##   reg - operand
+    ##
+    ## Flags:
+    ##
+    ##   N/Z from subtraction result
+    ##   C set if reg >= operand
+    #####################################################################
 
     proc compare(self, reg_, operand):
-        let r = (reg_ - (operand & 0xFF)) & 0xFF
+
+        let a = reg_ & 0xFF
+
+        let b = operand & 0xFF
+
+        let r = (
+            a - b
+        ) & 0xFF
+
         self.status.upd_nz(r)
-        if reg_ >= (operand & 0xFF):
+
+
+        if a >= b:
+
             self.status.set_C(1)
+
         else:
+
             self.status.set_C(0)
 
-    # ------------------------------------------------------------------
-    # shifts / rotates: operate on A (addr nil) or memory
-    # ------------------------------------------------------------------
-    proc shift(self, id, operand, addr):
-        var result = 0
-        if id == 31:           # ASL
-            result = (operand << 1) & 0xFF
-            self.status.set_C(operand & 0x80)
-        elif id == 32:         # LSR
-            result = (operand >> 1) & 0xFF
-            self.status.set_C(operand & 0x01)
-        elif id == 33:         # ROL
-            let c = self.status.C()
-            result = ((operand << 1) & 0xFF) | c
-            self.status.set_C(operand & 0x80)
-        elif id == 34:         # ROR
-            let c = self.status.C()
-            result = ((operand >> 1) & 0xFF) | (c << 7)
-            self.status.set_C(operand & 0x01)
-        self.status.upd_nz(result)
-        if addr == nil:
-            self.regs.a = result & 0xFF
-        else:
-            self.write8(addr, result & 0xFF)
 
-    # ------------------------------------------------------------------
-    # relative branches; returns extra cycles: 1 taken, 2 taken + page
-    # crossing (the NMOS 6502 charges +1 when the target crosses a page)
-    # ------------------------------------------------------------------
+    #####################################################################
+    ## Shifts / rotates
+    ##
+    ## addr == nil:
+    ##
+    ##   Operate on accumulator A.
+    ##
+    ## addr != nil:
+    ##
+    ##   Operate on memory.
+    #####################################################################
+
+    proc shift(
+        self,
+        id,
+        operand,
+        addr
+    ):
+
+        let value = (
+            operand
+        ) & 0xFF
+
+        var result = 0
+
+
+        #################################################################
+        ## ASL
+        #################################################################
+
+        if id == 31:
+
+            result = (
+                value << 1
+            ) & 0xFF
+
+            self.status.set_C(
+                value & 0x80
+            )
+
+
+        #################################################################
+        ## LSR
+        #################################################################
+
+        elif id == 32:
+
+            result = (
+                value >> 1
+            ) & 0xFF
+
+            self.status.set_C(
+                value & 0x01
+            )
+
+
+        #################################################################
+        ## ROL
+        #################################################################
+
+        elif id == 33:
+
+            let c = self.status.C()
+
+            result = (
+                (
+                    value << 1
+                ) & 0xFF
+            ) | c
+
+            self.status.set_C(
+                value & 0x80
+            )
+
+
+        #################################################################
+        ## ROR
+        #################################################################
+
+        elif id == 34:
+
+            let c = self.status.C()
+
+            result = (
+                (
+                    value >> 1
+                ) & 0xFF
+            ) | (
+                c << 7
+            )
+
+            self.status.set_C(
+                value & 0x01
+            )
+
+
+        #################################################################
+        ## Update N / Z
+        #################################################################
+
+        self.status.upd_nz(
+            result
+        )
+
+
+        #################################################################
+        ## Write result
+        #################################################################
+
+        if addr == nil:
+
+            self.regs.a = (
+                result
+            ) & 0xFF
+
+        else:
+
+            self.write8(
+                addr,
+                result & 0xFF
+            )
+
+
+    #####################################################################
+    ## Relative branches
+    ##
+    ## Returns extra cycles:
+    ##
+    ##   0 = branch not taken
+    ##   1 = branch taken
+    ##   2 = branch taken and page crossed
+    #####################################################################
+
     proc branch(self, id):
-        let off = self.sbyte(self.read8(self.regs.pc))
-        self.regs.pc = (self.regs.pc + 1) & 0xFFFF
+
+
+        #################################################################
+        ## Fetch signed 8-bit offset
+        #################################################################
+
+        let off = self.sbyte(
+            self.read8(
+                self.regs.pc
+            )
+        )
+
+        self.regs.pc = (
+            self.regs.pc + 1
+        ) & 0xFFFF
+
+
+        #################################################################
+        ## Determine whether branch is taken
+        #################################################################
+
         var take = false
-        if id == 35:           # BCC
+
+
+        #################################################################
+        ## BCC
+        #################################################################
+
+        if id == 35:
+
             if self.status.C() == 0:
                 take = true
-        elif id == 36:         # BCS
+
+
+        #################################################################
+        ## BCS
+        #################################################################
+
+        elif id == 36:
+
             if self.status.C() == 1:
                 take = true
-        elif id == 37:         # BEQ
+
+
+        #################################################################
+        ## BEQ
+        #################################################################
+
+        elif id == 37:
+
             if self.status.Z() == 1:
                 take = true
-        elif id == 38:         # BMI
+
+
+        #################################################################
+        ## BMI
+        #################################################################
+
+        elif id == 38:
+
             if self.status.N() == 1:
                 take = true
-        elif id == 39:         # BNE
+
+
+        #################################################################
+        ## BNE
+        #################################################################
+
+        elif id == 39:
+
             if self.status.Z() == 0:
                 take = true
-        elif id == 40:         # BPL
+
+
+        #################################################################
+        ## BPL
+        #################################################################
+
+        elif id == 40:
+
             if self.status.N() == 0:
                 take = true
-        elif id == 41:         # BVC
+
+
+        #################################################################
+        ## BVC
+        #################################################################
+
+        elif id == 41:
+
             if self.status.V() == 0:
                 take = true
-        elif id == 42:         # BVS
+
+
+        #################################################################
+        ## BVS
+        #################################################################
+
+        elif id == 42:
+
             if self.status.V() == 1:
                 take = true
+
+
+        #################################################################
+        ## Execute branch
+        #################################################################
+
         if take:
-            let srcpage = self.regs.pc & 0xFF00
-            self.regs.pc = (self.regs.pc + off) & 0xFFFF
-            if (self.regs.pc & 0xFF00) != srcpage:
+
+            let srcpage = (
+                self.regs.pc & 0xFF00
+            )
+
+            self.regs.pc = (
+                self.regs.pc + off
+            ) & 0xFFFF
+
+
+            #################################################################
+            ## Page-cross penalty
+            #################################################################
+
+            if (
+                (self.regs.pc & 0xFF00) !=
+                srcpage
+            ):
+
                 return 2
+
+
             return 1
+
+
         return 0
