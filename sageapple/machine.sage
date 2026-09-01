@@ -17,7 +17,7 @@ class SageApple:
     proc power_on(self):
         self.bus.load_rom(boot.build_boot_rom())
         self.cpu.reset()
-        self.cpu.run()
+        self.cpu.run(1000000)
         self.booted = true
 
     ## load an arbitrary ROM image (monitor / BASIC) without running

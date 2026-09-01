@@ -31,11 +31,11 @@
 
 import sage6502.registers
 import sage6502.flags
-import dicts
+import sage6502.constants
 
 
 #########################################################################
-## Scratch buffer for fetch()
+## CPU instance scratch buffer for fetch()
 ##
 ## Avoids allocating a new list for every effective-address calculation.
 ##
@@ -43,42 +43,9 @@ import dicts
 ##
 ##   [0] = effective address
 ##   [1] = page crossed
-#########################################################################
-
-var _FETCH_SCRATCH = [0, 0]
-
-
-#########################################################################
-## Addressing-mode constants
 ##
-##   0  immediate
-##   1  zero page
-##   2  zero page,X
-##   3  zero page,Y
-##   4  absolute
-##   5  absolute,X
-##   6  absolute,Y
-##   7  (zero page,X)
-##   8  (zero page),Y
-##   9  accumulator
-##   10 absolute indirect
-##   11 relative
-##   12 implied
+## Per-instance (not global) so multiple CPU objects can run concurrently.
 #########################################################################
-
-let M_IMM  = 0
-let M_ZP   = 1
-let M_ZPX  = 2
-let M_ZPY  = 3
-let M_ABS  = 4
-let M_ABSX = 5
-let M_ABSY = 6
-let M_INDX = 7
-let M_INDY = 8
-let M_ACC  = 9
-let M_IND  = 10
-let M_REL  = 11
-let M_IMP  = 12
 
 
 #########################################################################
@@ -157,365 +124,203 @@ let M_IMP  = 12
 ##   55  SEI
 #########################################################################
 
-proc _table():
+proc _build_opcodes():
 
     let t = []
 
     var i = 0
-
     while i < 256:
         push(t, [0, M_IMP])
         i = i + 1
 
-
-    #####################################################################
-    ## LDA
-    #####################################################################
-
-    t[0xA9] = [0, M_IMM]
-    t[0xA5] = [0, M_ZP]
-    t[0xB5] = [0, M_ZPX]
-    t[0xAD] = [0, M_ABS]
-    t[0xBD] = [0, M_ABSX]
-    t[0xB9] = [0, M_ABSY]
-    t[0xA1] = [0, M_INDX]
-    t[0xB1] = [0, M_INDY]
-
-
-    #####################################################################
-    ## LDX
-    #####################################################################
-
-    t[0xA2] = [1, M_IMM]
-    t[0xA6] = [1, M_ZP]
-    t[0xB6] = [1, M_ZPY]
-    t[0xAE] = [1, M_ABS]
-    t[0xBE] = [1, M_ABSY]
-
-
-    #####################################################################
-    ## LDY
-    #####################################################################
-
-    t[0xA0] = [2, M_IMM]
-    t[0xA4] = [2, M_ZP]
-    t[0xB4] = [2, M_ZPX]
-    t[0xAC] = [2, M_ABS]
-    t[0xBC] = [2, M_ABSX]
-
-
-    #####################################################################
-    ## STA
-    #####################################################################
-
-    t[0x85] = [3, M_ZP]
-    t[0x95] = [3, M_ZPX]
-    t[0x8D] = [3, M_ABS]
-    t[0x9D] = [3, M_ABSX]
-    t[0x99] = [3, M_ABSY]
-    t[0x81] = [3, M_INDX]
-    t[0x91] = [3, M_INDY]
-
-
-    #####################################################################
-    ## STX
-    #####################################################################
-
-    t[0x86] = [4, M_ZP]
-    t[0x96] = [4, M_ZPY]
-    t[0x8E] = [4, M_ABS]
-
-
-    #####################################################################
-    ## STY
-    #####################################################################
-
-    t[0x84] = [5, M_ZP]
-    t[0x94] = [5, M_ZPX]
-    t[0x8C] = [5, M_ABS]
-
-
-    #####################################################################
-    ## Transfers
-    #####################################################################
-
-    t[0xAA] = [6, M_IMP]
-    t[0x8A] = [7, M_IMP]
-    t[0xA8] = [8, M_IMP]
-    t[0x98] = [9, M_IMP]
-    t[0xBA] = [10, M_IMP]
-    t[0x9A] = [11, M_IMP]
-
-
-    #####################################################################
-    ## Stack
-    #####################################################################
-
-    t[0x48] = [12, M_IMP]
-    t[0x08] = [13, M_IMP]
-    t[0x68] = [14, M_IMP]
-    t[0x28] = [15, M_IMP]
-
-
-    #####################################################################
-    ## ADC
-    #####################################################################
-
-    t[0x69] = [16, M_IMM]
-    t[0x65] = [16, M_ZP]
-    t[0x75] = [16, M_ZPX]
-    t[0x6D] = [16, M_ABS]
-    t[0x7D] = [16, M_ABSX]
-    t[0x79] = [16, M_ABSY]
-    t[0x61] = [16, M_INDX]
-    t[0x71] = [16, M_INDY]
-
-
-    #####################################################################
-    ## SBC
-    #####################################################################
-
-    t[0xE9] = [17, M_IMM]
-    t[0xE5] = [17, M_ZP]
-    t[0xF5] = [17, M_ZPX]
-    t[0xED] = [17, M_ABS]
-    t[0xFD] = [17, M_ABSX]
-    t[0xF9] = [17, M_ABSY]
-    t[0xE1] = [17, M_INDX]
-    t[0xF1] = [17, M_INDY]
-
-
-    #####################################################################
-    ## AND
-    #####################################################################
-
-    t[0x29] = [18, M_IMM]
-    t[0x25] = [18, M_ZP]
-    t[0x35] = [18, M_ZPX]
-    t[0x2D] = [18, M_ABS]
-    t[0x3D] = [18, M_ABSX]
-    t[0x39] = [18, M_ABSY]
-    t[0x21] = [18, M_INDX]
-    t[0x31] = [18, M_INDY]
-
-
-    #####################################################################
-    ## ORA
-    #####################################################################
-
-    t[0x09] = [19, M_IMM]
-    t[0x05] = [19, M_ZP]
-    t[0x15] = [19, M_ZPX]
-    t[0x0D] = [19, M_ABS]
-    t[0x1D] = [19, M_ABSX]
-    t[0x19] = [19, M_ABSY]
-    t[0x01] = [19, M_INDX]
-    t[0x11] = [19, M_INDY]
-
-
-    #####################################################################
-    ## EOR
-    #####################################################################
-
-    t[0x49] = [20, M_IMM]
-    t[0x45] = [20, M_ZP]
-    t[0x55] = [20, M_ZPX]
-    t[0x4D] = [20, M_ABS]
-    t[0x5D] = [20, M_ABSX]
-    t[0x59] = [20, M_ABSY]
-    t[0x41] = [20, M_INDX]
-    t[0x51] = [20, M_INDY]
-
-
-    #####################################################################
-    ## BIT
-    #####################################################################
-
-    t[0x24] = [21, M_ZP]
-    t[0x2C] = [21, M_ABS]
-
-
-    #####################################################################
-    ## CMP
-    #####################################################################
-
-    t[0xC9] = [22, M_IMM]
-    t[0xC5] = [22, M_ZP]
-    t[0xD5] = [22, M_ZPX]
-    t[0xCD] = [22, M_ABS]
-    t[0xDD] = [22, M_ABSX]
-    t[0xD9] = [22, M_ABSY]
-    t[0xC1] = [22, M_INDX]
-    t[0xD1] = [22, M_INDY]
-
-
-    #####################################################################
-    ## CPX
-    #####################################################################
-
-    t[0xE0] = [23, M_IMM]
-    t[0xE4] = [23, M_ZP]
-    t[0xEC] = [23, M_ABS]
-
-
-    #####################################################################
-    ## CPY
-    #####################################################################
-
-    t[0xC0] = [24, M_IMM]
-    t[0xC4] = [24, M_ZP]
-    t[0xCC] = [24, M_ABS]
-
-
-    #####################################################################
-    ## INC
-    #####################################################################
-
-    t[0xE6] = [25, M_ZP]
-    t[0xF6] = [25, M_ZPX]
-    t[0xEE] = [25, M_ABS]
-    t[0xFE] = [25, M_ABSX]
-
-
-    #####################################################################
-    ## DEC
-    #####################################################################
-
-    t[0xC6] = [26, M_ZP]
-    t[0xD6] = [26, M_ZPX]
-    t[0xCE] = [26, M_ABS]
-    t[0xDE] = [26, M_ABSX]
-
-
-    #####################################################################
-    ## Increment / decrement registers
-    #####################################################################
-
-    t[0xE8] = [27, M_IMP]
-    t[0xC8] = [28, M_IMP]
-    t[0xCA] = [29, M_IMP]
-    t[0x88] = [30, M_IMP]
-
-
-    #####################################################################
-    ## ASL
-    #####################################################################
-
-    t[0x0A] = [31, M_ACC]
-    t[0x06] = [31, M_ZP]
-    t[0x16] = [31, M_ZPX]
-    t[0x0E] = [31, M_ABS]
-    t[0x1E] = [31, M_ABSX]
-
-
-    #####################################################################
-    ## LSR
-    #####################################################################
-
-    t[0x4A] = [32, M_ACC]
-    t[0x46] = [32, M_ZP]
-    t[0x56] = [32, M_ZPX]
-    t[0x4E] = [32, M_ABS]
-    t[0x5E] = [32, M_ABSX]
-
-
-    #####################################################################
-    ## ROL
-    #####################################################################
-
-    t[0x2A] = [33, M_ACC]
-    t[0x26] = [33, M_ZP]
-    t[0x36] = [33, M_ZPX]
-    t[0x2E] = [33, M_ABS]
-    t[0x3E] = [33, M_ABSX]
-
-
-    #####################################################################
-    ## ROR
-    #####################################################################
-
-    t[0x6A] = [34, M_ACC]
-    t[0x66] = [34, M_ZP]
-    t[0x76] = [34, M_ZPX]
-    t[0x6E] = [34, M_ABS]
-    t[0x7E] = [34, M_ABSX]
-
-
-    #####################################################################
-    ## Branches
-    #####################################################################
-
-    t[0x90] = [35, M_REL]
-    t[0xB0] = [36, M_REL]
-    t[0xF0] = [37, M_REL]
-    t[0x30] = [38, M_REL]
-    t[0xD0] = [39, M_REL]
-    t[0x10] = [40, M_REL]
-    t[0x50] = [41, M_REL]
-    t[0x70] = [42, M_REL]
-
-
-    #####################################################################
-    ## Jumps / subroutines
-    #####################################################################
-
-    t[0x4C] = [43, M_ABS]
-    t[0x6C] = [43, M_IND]
-
-    t[0x20] = [44, M_ABS]
-
-    t[0x60] = [45, M_IMP]
-
-
-    #####################################################################
-    ## System
-    #####################################################################
-
-    t[0x00] = [46, M_IMP]
-    t[0x40] = [47, M_IMP]
-    t[0xEA] = [48, M_IMP]
-
-
-    #####################################################################
-    ## Flags
-    #####################################################################
-
-    t[0x18] = [49, M_IMP]
-    t[0xD8] = [50, M_IMP]
-    t[0x58] = [51, M_IMP]
-    t[0xB8] = [52, M_IMP]
-
-    t[0x38] = [53, M_IMP]
-    t[0xF8] = [54, M_IMP]
-    t[0x78] = [55, M_IMP]
-
+    t[0xA9] = [LDA,  M_IMM]
+    t[0xA5] = [LDA,  M_ZP]
+    t[0xB5] = [LDA,  M_ZPX]
+    t[0xAD] = [LDA,  M_ABS]
+    t[0xBD] = [LDA,  M_ABSX]
+    t[0xB9] = [LDA,  M_ABSY]
+    t[0xA1] = [LDA,  M_INDX]
+    t[0xB1] = [LDA,  M_INDY]
+
+    t[0xA2] = [LDX,  M_IMM]
+    t[0xA6] = [LDX,  M_ZP]
+    t[0xB6] = [LDX,  M_ZPY]
+    t[0xAE] = [LDX,  M_ABS]
+    t[0xBE] = [LDX,  M_ABSY]
+
+    t[0xA0] = [LDY,  M_IMM]
+    t[0xA4] = [LDY,  M_ZP]
+    t[0xB4] = [LDY,  M_ZPX]
+    t[0xAC] = [LDY,  M_ABS]
+    t[0xBC] = [LDY,  M_ABSX]
+
+    t[0x85] = [STA,  M_ZP]
+    t[0x95] = [STA,  M_ZPX]
+    t[0x8D] = [STA,  M_ABS]
+    t[0x9D] = [STA,  M_ABSX]
+    t[0x99] = [STA,  M_ABSY]
+    t[0x81] = [STA,  M_INDX]
+    t[0x91] = [STA,  M_INDY]
+
+    t[0x86] = [STX,  M_ZP]
+    t[0x96] = [STX,  M_ZPY]
+    t[0x8E] = [STX,  M_ABS]
+
+    t[0x84] = [STY,  M_ZP]
+    t[0x94] = [STY,  M_ZPX]
+    t[0x8C] = [STY,  M_ABS]
+
+    t[0xAA] = [TAX,  M_IMP]
+    t[0x8A] = [TXA,  M_IMP]
+    t[0xA8] = [TAY,  M_IMP]
+    t[0x98] = [TYA,  M_IMP]
+    t[0xBA] = [TSX,  M_IMP]
+    t[0x9A] = [TXS,  M_IMP]
+
+    t[0x48] = [PHA,  M_IMP]
+    t[0x08] = [PHP,  M_IMP]
+    t[0x68] = [PLA,  M_IMP]
+    t[0x28] = [PLP,  M_IMP]
+
+    t[0x69] = [ADC,  M_IMM]
+    t[0x65] = [ADC,  M_ZP]
+    t[0x75] = [ADC,  M_ZPX]
+    t[0x6D] = [ADC,  M_ABS]
+    t[0x7D] = [ADC,  M_ABSX]
+    t[0x79] = [ADC,  M_ABSY]
+    t[0x61] = [ADC,  M_INDX]
+    t[0x71] = [ADC,  M_INDY]
+
+    t[0xE9] = [SBC,  M_IMM]
+    t[0xE5] = [SBC,  M_ZP]
+    t[0xF5] = [SBC,  M_ZPX]
+    t[0xED] = [SBC,  M_ABS]
+    t[0xFD] = [SBC,  M_ABSX]
+    t[0xF9] = [SBC,  M_ABSY]
+    t[0xE1] = [SBC,  M_INDX]
+    t[0xF1] = [SBC,  M_INDY]
+
+    t[0x29] = [AND,  M_IMM]
+    t[0x25] = [AND,  M_ZP]
+    t[0x35] = [AND,  M_ZPX]
+    t[0x2D] = [AND,  M_ABS]
+    t[0x3D] = [AND,  M_ABSX]
+    t[0x39] = [AND,  M_ABSY]
+    t[0x21] = [AND,  M_INDX]
+    t[0x31] = [AND,  M_INDY]
+
+    t[0x09] = [ORA,  M_IMM]
+    t[0x05] = [ORA,  M_ZP]
+    t[0x15] = [ORA,  M_ZPX]
+    t[0x0D] = [ORA,  M_ABS]
+    t[0x1D] = [ORA,  M_ABSX]
+    t[0x19] = [ORA,  M_ABSY]
+    t[0x01] = [ORA,  M_INDX]
+    t[0x11] = [ORA,  M_INDY]
+
+    t[0x49] = [EOR,  M_IMM]
+    t[0x45] = [EOR,  M_ZP]
+    t[0x55] = [EOR,  M_ZPX]
+    t[0x4D] = [EOR,  M_ABS]
+    t[0x5D] = [EOR,  M_ABSX]
+    t[0x59] = [EOR,  M_ABSY]
+    t[0x41] = [EOR,  M_INDX]
+    t[0x51] = [EOR,  M_INDY]
+
+    t[0x24] = [BIT,  M_ZP]
+    t[0x2C] = [BIT,  M_ABS]
+
+    t[0xC9] = [CMP,  M_IMM]
+    t[0xC5] = [CMP,  M_ZP]
+    t[0xD5] = [CMP,  M_ZPX]
+    t[0xCD] = [CMP,  M_ABS]
+    t[0xDD] = [CMP,  M_ABSX]
+    t[0xD9] = [CMP,  M_ABSY]
+    t[0xC1] = [CMP,  M_INDX]
+    t[0xD1] = [CMP,  M_INDY]
+
+    t[0xE0] = [CPX,  M_IMM]
+    t[0xE4] = [CPX,  M_ZP]
+    t[0xEC] = [CPX,  M_ABS]
+
+    t[0xC0] = [CPY,  M_IMM]
+    t[0xC4] = [CPY,  M_ZP]
+    t[0xCC] = [CPY,  M_ABS]
+
+    t[0xE6] = [INC,  M_ZP]
+    t[0xF6] = [INC,  M_ZPX]
+    t[0xEE] = [INC,  M_ABS]
+    t[0xFE] = [INC,  M_ABSX]
+
+    t[0xC6] = [DEC,  M_ZP]
+    t[0xD6] = [DEC,  M_ZPX]
+    t[0xCE] = [DEC,  M_ABS]
+    t[0xDE] = [DEC,  M_ABSX]
+
+    t[0xE8] = [INX,  M_IMP]
+    t[0xC8] = [INY,  M_IMP]
+    t[0xCA] = [DEX,  M_IMP]
+    t[0x88] = [DEY,  M_IMP]
+
+    t[0x0A] = [ASL,  M_ACC]
+    t[0x06] = [ASL,  M_ZP]
+    t[0x16] = [ASL,  M_ZPX]
+    t[0x0E] = [ASL,  M_ABS]
+    t[0x1E] = [ASL,  M_ABSX]
+
+    t[0x4A] = [LSR,  M_ACC]
+    t[0x46] = [LSR,  M_ZP]
+    t[0x56] = [LSR,  M_ZPX]
+    t[0x4E] = [LSR,  M_ABS]
+    t[0x5E] = [LSR,  M_ABSX]
+
+    t[0x2A] = [ROL,  M_ACC]
+    t[0x26] = [ROL,  M_ZP]
+    t[0x36] = [ROL,  M_ZPX]
+    t[0x2E] = [ROL,  M_ABS]
+    t[0x3E] = [ROL,  M_ABSX]
+
+    t[0x6A] = [ROR,  M_ACC]
+    t[0x66] = [ROR,  M_ZP]
+    t[0x76] = [ROR,  M_ZPX]
+    t[0x6E] = [ROR,  M_ABS]
+    t[0x7E] = [ROR,  M_ABSX]
+
+    t[0x90] = [BCC,  M_REL]
+    t[0xB0] = [BCS,  M_REL]
+    t[0xF0] = [BEQ,  M_REL]
+    t[0x30] = [BMI,  M_REL]
+    t[0xD0] = [BNE,  M_REL]
+    t[0x10] = [BPL,  M_REL]
+    t[0x50] = [BVC,  M_REL]
+    t[0x70] = [BVS,  M_REL]
+
+    t[0x4C] = [JMP,  M_ABS]
+    t[0x6C] = [JMP,  M_IND]
+    t[0x20] = [JSR,  M_ABS]
+    t[0x60] = [RTS,  M_IMP]
+
+    t[0x00] = [BRK,  M_IMP]
+    t[0x40] = [RTI,  M_IMP]
+    t[0xEA] = [NOP,  M_IMP]
+
+    t[0x18] = [CLC,  M_IMP]
+    t[0xD8] = [CLD,  M_IMP]
+    t[0x58] = [CLI,  M_IMP]
+    t[0xB8] = [CLV,  M_IMP]
+    t[0x38] = [SEC,  M_IMP]
+    t[0xF8] = [SED,  M_IMP]
+    t[0x78] = [SEI,  M_IMP]
 
     return t
 
 
-var _OPCODES = _table()
+var _OPCODES = _build_opcodes()
 
 
-#########################################################################
-## Canonical NMOS 6502 base cycle counts
-#########################################################################
-
-proc _load_cycles():
-
-    let raw = "7,6,0,0,0,3,5,0,3,2,2,0,0,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,3,3,5,0,4,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,0,3,5,0,3,2,2,0,3,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,6,6,0,0,0,3,5,0,4,2,2,0,5,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,0,6,0,0,3,3,3,0,2,0,2,0,4,4,4,0,2,6,0,0,4,4,4,0,2,5,2,0,0,5,0,0,2,6,2,0,3,3,3,0,2,2,2,0,4,4,4,0,2,5,0,0,4,4,4,0,2,4,2,0,4,4,4,0,2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0,2,6,0,0,3,3,5,0,2,2,2,0,4,4,6,0,2,5,0,0,0,4,6,0,2,4,0,0,0,4,7,0"
-
-    let parts = split(raw, ",")
-
-    let t = []
-
-    var i = 0
-
-    while i < 256:
-        push(t, _atoi(parts[i]))
-        i = i + 1
-
-    return t
-
+#############################################################################
+## Cycle counts
+#############################################################################
 
 proc _atoi(s):
 
@@ -531,12 +336,28 @@ proc _atoi(s):
     return v
 
 
+proc _load_cycles():
+
+    let raw = "7,6,2,2,1,3,5,2,3,2,2,2,1,4,6,2,2,5,2,2,1,4,6,2,2,4,2,2,1,4,7,2,6,6,2,2,3,3,5,2,4,2,2,2,4,4,6,2,2,5,2,2,1,4,6,2,2,4,2,2,1,4,7,2,6,6,2,2,1,3,5,2,3,2,2,2,3,4,6,2,2,5,2,2,1,4,7,2,2,4,2,2,1,4,7,2,6,6,2,2,1,3,5,2,4,2,2,2,5,4,6,2,2,5,2,2,1,4,7,2,2,4,2,2,1,4,7,2,2,6,2,2,3,3,3,2,2,2,2,2,4,4,4,2,2,6,2,2,4,4,4,2,2,5,2,2,4,5,2,2,2,6,2,2,3,3,3,2,2,2,2,2,4,4,4,2,2,5,2,2,4,4,4,2,2,4,2,2,4,4,4,2,2,6,2,2,3,3,5,2,2,2,2,2,4,4,6,2,2,5,2,2,1,4,6,2,2,4,2,2,1,4,7,2"
+
+    let parts = split(raw, ",")
+
+    let t = []
+
+    var i = 0
+
+    while i < 256:
+        if i < len(parts):
+            push(t, _atoi(parts[i]))
+        else:
+            push(t, 0)
+        i = i + 1
+
+    return t
+
+
 var _CYCLES = _load_cycles()
 
-
-#########################################################################
-## CPU
-#########################################################################
 
 class CPU:
 
@@ -558,6 +379,8 @@ class CPU:
 
         self.irq_pending = false
         self.nmi_pending = false
+
+        self._fetch_scratch = [0, 0]
 
 
     #####################################################################
@@ -878,11 +701,11 @@ class CPU:
                 self.regs.pc + 1
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = zp
+            self._fetch_scratch[0] = zp
 
-            _FETCH_SCRATCH[1] = 0
+            self._fetch_scratch[1] = 0
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -899,13 +722,13 @@ class CPU:
                 self.regs.pc + 1
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = (
+            self._fetch_scratch[0] = (
                 zp + self.regs.x
             ) & 0xFF
 
-            _FETCH_SCRATCH[1] = 0
+            self._fetch_scratch[1] = 0
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -922,13 +745,13 @@ class CPU:
                 self.regs.pc + 1
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = (
+            self._fetch_scratch[0] = (
                 zp + self.regs.y
             ) & 0xFF
 
-            _FETCH_SCRATCH[1] = 0
+            self._fetch_scratch[1] = 0
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -949,13 +772,13 @@ class CPU:
                 self.regs.pc + 2
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = (
+            self._fetch_scratch[0] = (
                 hi << 8
             ) | lo
 
-            _FETCH_SCRATCH[1] = 0
+            self._fetch_scratch[1] = 0
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -984,13 +807,13 @@ class CPU:
                 base + self.regs.x
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = eff
+            self._fetch_scratch[0] = eff
 
-            _FETCH_SCRATCH[1] = (
+            self._fetch_scratch[1] = (
                 self._pcross(base, eff)
             )
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -1019,13 +842,13 @@ class CPU:
                 base + self.regs.y
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = eff
+            self._fetch_scratch[0] = eff
 
-            _FETCH_SCRATCH[1] = (
+            self._fetch_scratch[1] = (
                 self._pcross(base, eff)
             )
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -1052,13 +875,13 @@ class CPU:
                 (ptr + 1) & 0xFF
             )
 
-            _FETCH_SCRATCH[0] = (
+            self._fetch_scratch[0] = (
                 hi << 8
             ) | lo
 
-            _FETCH_SCRATCH[1] = 0
+            self._fetch_scratch[1] = 0
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -1089,13 +912,13 @@ class CPU:
                 base + self.regs.y
             ) & 0xFFFF
 
-            _FETCH_SCRATCH[0] = eff
+            self._fetch_scratch[0] = eff
 
-            _FETCH_SCRATCH[1] = (
+            self._fetch_scratch[1] = (
                 self._pcross(base, eff)
             )
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
@@ -1139,23 +962,23 @@ class CPU:
                 ((ptr + 1) & 0xFF)
             )
 
-            _FETCH_SCRATCH[0] = (
+            self._fetch_scratch[0] = (
                 target_hi << 8
             ) | target_lo
 
-            _FETCH_SCRATCH[1] = 0
+            self._fetch_scratch[1] = 0
 
-            return _FETCH_SCRATCH
+            return self._fetch_scratch
 
 
         #################################################################
         ## Default
         #################################################################
 
-        _FETCH_SCRATCH[0] = 0
-        _FETCH_SCRATCH[1] = 0
+        self._fetch_scratch[0] = 0
+        self._fetch_scratch[1] = 0
 
-        return _FETCH_SCRATCH
+        return self._fetch_scratch
 
 
     #####################################################################
@@ -1301,9 +1124,8 @@ class CPU:
         if fa[1] == 1:
 
             if (
-                id == 0 or
-                id == 1 or
-                id == 2
+                id >= 0 and
+                id <= 2
             ):
 
                 return 1
@@ -1316,7 +1138,6 @@ class CPU:
                 return 1
 
             if id == 22:
-
                 return 1
 
 
@@ -1332,6 +1153,11 @@ class CPU:
         return _OPCODES[
             code & 0xFF
         ]
+
+
+    ## Compatibility shim for external code that references cpu._table()
+    proc _table(self):
+        return _OPCODES
 
 
     #####################################################################
@@ -2887,3 +2713,11 @@ class CPU:
 
 
         return 0
+
+
+#############################################################################
+## Module-level compatibility shim for code that references cpu._table()
+#############################################################################
+
+proc _table():
+    return _OPCODES

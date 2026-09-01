@@ -43,7 +43,7 @@ hardware:
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 | M14 | Apple II software stack: DOS 3.3 command processor, full Applesoft BASIC, host Apple II monitor (`*` dumps/disassembly/go), unified `]` BASIC / `*` monitor shell, SAGEFS v2 with DOS file types |
 
-Host suites: **15 modules, 266 checks passing** — plus the AVR host
+Host suites: **16 modules, 285 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture
@@ -150,7 +150,7 @@ over the physical UART (9,600 baud); `C-a d`/`C-a k` returns to the
 Run any module standalone, or all 15:
 
 ```sh
-for t in tests/*/*.sage; do sage "$t"; done   # 266 checks, all OK
+for t in tests/*/*.sage; do sage "$t"; done   # 285 checks, all OK
 ```
 
 ## Repository layout

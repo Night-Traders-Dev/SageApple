@@ -15,7 +15,8 @@ sage tests/boot/test_monitor.sage
 | module | checks | what it proves |
 |---|---|---|
 | `tests/6502/test_cpu.sage` | 8 | CLI/LDA/TAX/INX/STX/ADC/STA, SBC, branch skip, flags |
-| `tests/6502/test_opcodes.sage` | 22 | abs,X / abs,Y addressing, page wrap, stack, JSR/RTS, branches, IRQ/RTI, JMP ($xxFF) page-wrap, cycle-exact page-cross accounting |
+| `tests/6502/test_opcodes.sage` | 21 | abs,X / abs,Y addressing, page wrap, stack, JSR/RTS, branches, IRQ/RTI, JMP ($xxFF) page-wrap, cycle-exact page-cross accounting |
+| `tests/6502/test_exhaustive.sage` | 20 | ADC binary/decimal, SBC binary, branch cycle timing, page-cross penalties, JMP indirect page-wrap, IRQ/NMI B flags, PHP B flag, PLP bit 5 normalization, NMI priority |
 | `tests/compiler/test_asm6502.sage` | 11 | assembler encodes real 6502, labels resolve, program runs on the host emulator |
 | `tests/compiler/test_backend.sage` | 20 | compiled BASIC output equality (arithmetic, strings, GOTO/IF, comparisons, div-0) |
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
@@ -28,8 +29,8 @@ sage tests/boot/test_monitor.sage
 | `tests/storage/test_fs.sage` | 26 | SAGEFS v2 round-trips, limits, persistence, BASIC save/load |
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
-| `tests/machine/test_apple2.sage` | 30 | DOS 3.3 verbs, file types, monitor shell, CALL -151 |
-| **Total** | **266** | |
+| `tests/machine/test_apple2.sage` | 33 | DOS 3.3 verbs, file types, monitor shell, CALL -151 |
+| **Total** | **285** | |
 
 ## How suites assert
 

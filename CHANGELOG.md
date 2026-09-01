@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Sage6502 CPU — Phase B/C/D refactoring and verification
+- `sage6502/constants.sage` — named instruction IDs (LDA=0, …, BRK=55) and
+  addressing modes (M_IMM=0, …, M_IMP=12)
+- `sage6502/opcodes.sage` — declarative opcode-to-[id,mode] table (kept
+  parallel to cpu.sage for tools; not imported due to scoping)
+- `sage6502/cycles.sage` — 256-entry base cycle-count table
+- `sage6502/decimal.sage` — pure ADC/SBC decimal helper functions
+- `sage6502/cpu.sage` — refactored: imports `registers`, `flags`,
+  `constants`; `_build_opcodes()` and `_load_cycles()` defined locally;
+  module-level `proc _table()` shim for compatibility
+- CPU fix: global `_FETCH_SCRATCH` → per-instance `self._fetch_scratch`
+- CPU fix: full 256-entry cycle table (was truncated at 224)
+- CPU fix: LDA/LDX/LDY indexed page-cross penalties (was missing)
+- `tests/6502/test_exhaustive.sage` — 20 new verification checks:
+  ADC binary/decimal, SBC binary, branch timing, page-cross penalties,
+  JMP indirect page-wrap, IRQ/NMI B flags, PHP/PLP behavior, NMI priority
+- 23 root-level ad-hoc scripts moved to `scratch/`
+- docs updated: sage6502.md (new file structure), tests.md (16 suites,
+  285 checks), README.md
+
 ### AppleCon — board controller
 - `tools/applecon.sage` — host-side controller (`sage-c tools/applecon.sage`).
   v1.1: all three boards wired to the OrangePi (og Uno R3 on ttyUSB0,

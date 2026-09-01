@@ -114,9 +114,13 @@ the host budget belongs to the emulator state; see [docs/avr.md](avr.md).)
 
 | module | purpose |
 |---|---|
-| `sage6502/cpu.sage` | 671-line table-driven NMOS 6502 interpreter, 151 canonical opcodes, all 13 addressing modes, cycle counting, interrupts |
+| `sage6502/cpu.sage` | table-driven NMOS 6502 interpreter, 151 canonical opcodes, all 13 addressing modes, cycle counting, interrupts |
 | `sage6502/registers.sage` | A/X/Y/SP/PC object |
 | `sage6502/flags.sage` | processor status byte NV-BDIZC |
+| `sage6502/constants.sage` | named instruction IDs and addressing modes |
+| `sage6502/cycles.sage` | 256-entry base cycle-count table |
+| `sage6502/decimal.sage` | pure ADC/SBC decimal helper functions |
+| `sage6502/opcodes.sage` | declarative opcode table (parallel to cpu.sage) |
 | `bus/bus.sage` | 64 KB flat byte-array bus |
 | `bus/applebus.sage` | the AppleBus: RAM + ROM + memory-mapped devices |
 | `devices/*.sage` | UART, SPI master, OLED display, NOR flash, speaker models |
