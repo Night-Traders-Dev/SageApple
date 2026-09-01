@@ -133,17 +133,17 @@ SageLang controller. It opens with an artistic TUI and drops into a
 
 ```sh
 sage-c tools/applecon.sage            # TUI + shell (use the C build)
-sage> status                          # probe local + OrangePi boards
-sage> con 0                           # this device's board (screen ttyUSB0)
-sage> con 1                           # OrangePi board 1 (SSH + screen)
-sage> con 2                           # OrangePi board 2 (SSH + screen)
+sage> status                          # probe all three OrangePi boards
+sage> con 0                           # og Uno R3   (/dev/ttyUSB0)
+sage> con 1                           # Nano R3     (/dev/ttyUSB1)
+sage> con 2                           # 2nd Uno R3  (/dev/ttyUSB2)
 sage> exit
 ```
 
-Each `con` hands off to an interactive `screen` serial terminal over the
-physical UART (9,600 baud); `C-a d`/`C-a k` returns to the `sage> `
-prompt. Remote boards are reached over SSH. See
-[docs/applecon.md](docs/applecon.md).
+All three boards are wired to the OrangePi (192.168.254.44) and reached
+over SSH. Each `con` hands off to an interactive `screen` serial terminal
+over the physical UART (9,600 baud); `C-a d`/`C-a k` returns to the
+`sage> ` prompt. See [docs/applecon.md](docs/applecon.md).
 
 ## Test suite
 

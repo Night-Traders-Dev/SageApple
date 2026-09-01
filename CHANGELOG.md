@@ -3,13 +3,13 @@
 ## [Unreleased]
 
 ### AppleCon — board controller
-- `tools/applecon.sage` — new host-side controller (`sage-c tools/applecon.sage`).
-  Opens with an artistic TUI (SAGE banner + board glyph), then an interactive
-  `sage> ` shell. `con 0/1/2` connect to the serial shells of three SageApple
-  boards (local `/dev/ttyUSB0`, plus two OrangePi boards over SSH); `status`
-  probes each port; `help`/`exit` as expected. Connection hands off to
-  `screen` for an interactive serial terminal; remote SSH is wrapped in a
-  `/tmp` helper so `sys.exec`'s `@` ban is respected.
+- `tools/applecon.sage` — host-side controller (`sage-c tools/applecon.sage`).
+  v1.1: all three boards wired to the OrangePi (og Uno R3 on ttyUSB0,
+  Nano R3 on ttyUSB1, 2nd Uno R3 on ttyUSB2). Opens with an artistic TUI,
+  then an interactive `sage> ` shell. `con 0/1/2` connect via SSH + screen;
+  stale detached screen sessions are automatically killed before connecting;
+  truthful status probing; stdin isolation prevents SSH from consuming piped
+  input.
 - `docs/applecon.md` — new doc; `docs/tools.md`, `README.md` updated.
 
 ### Clear screen

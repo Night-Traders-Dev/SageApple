@@ -7,17 +7,18 @@ off to each board's interactive serial shell.
 
 ## Topology
 
-AppleCon is designed around three boards:
+All three boards are wired to the OrangePi (192.168.254.44) and reached
+over SSH:
 
-| con | board            | serial port          |
-|-----|------------------|----------------------|
-| `0` | this device      | `/dev/ttyUSB0`       |
-| `1` | OrangePi · board 1 | `/dev/ttyUSB0` (remote) |
-| `2` | OrangePi · board 2 | `/dev/ttyUSB1` (remote) |
+| con | board           | serial port            | USB controller |
+|-----|-----------------|------------------------|----------------|
+| `0` | og Uno R3       | `/dev/ttyUSB0`         | mv-ehci (USB4) |
+| `1` | Nano R3         | `/dev/ttyUSB1`         | xhci-hcd (USB2) |
+| `2` | 2nd Uno R3      | `/dev/ttyUSB2`         | xhci-hcd (USB2) |
 
-`con 0` talks to a board attached directly to the machine running
-AppleCon. `con 1` and `con 2` reach the two boards hanging off the
-OrangePi over SSH.
+> **Note:** The 2nd Uno R3 uses a FIREPHX USB SER (0843:5740) chip
+> that requires the `cdc_acm` kernel module. If the module is not
+> available, `con 2` will report the port as down.
 
 ## Running
 
@@ -34,9 +35,9 @@ Run it from the repo root so `import io`/`import sys` resolve.
 
 | command | result |
 |---------|--------|
-| `sage> con 0` | connect to this device's board (`screen /dev/ttyUSB0 9600`) |
-| `sage> con 1` | SSH to the OrangePi and `screen /dev/ttyUSB0 9600` |
-| `sage> con 2` | SSH to the OrangePi and `screen /dev/ttyUSB1 9600` |
+| `sage> con 0` | SSH to the OrangePi and `screen /dev/ttyUSB0 9600` (og Uno R3) |
+| `sage> con 1` | SSH to the OrangePi and `screen /dev/ttyUSB1 9600` (Nano R3) |
+| `sage> con 2` | SSH to the OrangePi and `screen /dev/ttyUSB2 9600` (2nd Uno R3) |
 | `sage> status` | probe each port and show which boards are present |
 | `sage> help` | list the available commands |
 | `sage> exit` | leave AppleCon |
@@ -49,6 +50,12 @@ AppleCon without pulling the board's serial line:
 * `C-a k` — kill the screen session and return to the `sage> ` prompt
 * `C-a ?` — show the screen help
 
+## Stale screen cleanup
+
+AppleCon automatically kills any stale detached `screen` sessions on the
+target port before connecting. This prevents the "Device or resource busy"
+error that occurs when a previous screen session holds the port open.
+
 ## Note on `sys.exec` and SSH
 
 Sage's `sys.exec`/`sys.shell_exec` security validator only allows
@@ -58,4 +65,6 @@ rejected. AppleCon therefore writes the `ssh` invocation into a small
 so remote connections work without relaxing the validator.
 
 The remote probe (`status`) uses the same helper technique with
-`sys.shell_exec` to test whether each remote serial node exists.
+`sys.shell_exec` (redirecting stdin from `/dev/null` to prevent the SSH
+process from consuming piped input) to test whether each remote serial
+node exists.

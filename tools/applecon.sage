@@ -7,9 +7,11 @@
 ## "sage> " shell.  From here you can connect to the interactive serial
 ## shell on any of the SageApple boards:
 ##
-##   con 0   -> the SageApple board wired to THIS device (/dev/ttyUSB0)
-##   con 1   -> the first  SageApple board on the OrangePi  (/dev/ttyUSB0)
-##   con 2   -> the second SageApple board on the OrangePi  (/dev/ttyUSB1)
+##   con 0   -> og Uno R3   on OrangePi  (/dev/ttyUSB0)
+##   con 1   -> Nano R3     on OrangePi  (/dev/ttyUSB1)
+##   con 2   -> 2nd Uno R3  on OrangePi  (/dev/ttyUSB2, needs cdc_acm)
+##
+## All three boards are wired to the OrangePi and reached over SSH.
 ##
 ## On `con N` AppleCon hands off to `screen` (a TTY is required) so the
 ## board's monitor/BASIC shell runs interactively; exit screen (C-a d or
@@ -27,10 +29,13 @@ let ESC = "\x1b"
 let ORANGEPI_HOST = "orangepi@192.168.254.44"
 let ORANGEPI_PASS = "jdy@123"
 
-# Serial port / baud for the boards
-let LOCAL_PORT = "/dev/ttyUSB0"
-let ORANGE_PORT0 = "/dev/ttyUSB0"
-let ORANGE_PORT1 = "/dev/ttyUSB1"
+# All three boards are on the OrangePi
+let BOARD0_NAME = "og Uno R3"
+let BOARD0_PORT = "/dev/ttyUSB0"
+let BOARD1_NAME = "Nano R3"
+let BOARD1_PORT = "/dev/ttyUSB1"
+let BOARD2_NAME = "2nd Uno R3"
+let BOARD2_PORT = "/dev/ttyUSB2"
 let BAUD = "9600"
 
 proc sgr(code):
@@ -78,6 +83,20 @@ proc show_board_icon():
 proc clr():
     print(ESC + "[2J" + ESC + "[H")
 
+proc port_suffix(port):
+    # Extract last char of port path for safe filenames: /dev/ttyUSB0 -> "0"
+    return slice(port, len(port) - 1, len(port))
+
+proc probe_remote_port(port):
+    let tag = port_suffix(port)
+    let script = "/tmp/probe_" + tag + ".sh"
+    var body = "#!/bin/sh\n"
+    body = body + "sshpass -p '" + ORANGEPI_PASS + "' ssh -o StrictHostKeyChecking=no "
+    body = body + ORANGEPI_HOST + " 'ls " + port + " 2>/dev/null' < /dev/null\n"
+    io.writebytes(script, chars_of(body))
+    let res = sys.shell_exec("/bin/sh " + script)
+    return len(strip(res)) > 0
+
 proc run_tui():
     clr()
     show_banner()
@@ -87,14 +106,44 @@ proc run_tui():
     sgr(0)
     sgr(1)
     print("         Scanning for devices...")
-    print("         Found: con 0  -> this device   (/dev/ttyUSB0)")
-    print("         Found: con 1  -> OrangePi  #1  (/dev/ttyUSB0)")
-    print("         Found: con 2  -> OrangePi  #2  (/dev/ttyUSB1)")
-    print("         All boards online!")
+
+    # Probe each board for real
+    let found0 = probe_remote_port(BOARD0_PORT)
+    let found1 = probe_remote_port(BOARD1_PORT)
+    let found2 = probe_remote_port(BOARD2_PORT)
+
+    if found0:
+        sgr(32)
+        print("         con 0  -> " + BOARD0_NAME + "  (" + BOARD0_PORT + ")")
+    else:
+        sgr(31)
+        print("         con 0  -> " + BOARD0_NAME + "  (" + BOARD0_PORT + ")  [not found]")
+
+    if found1:
+        sgr(32)
+        print("         con 1  -> " + BOARD1_NAME + "  (" + BOARD1_PORT + ")")
+    else:
+        sgr(31)
+        print("         con 1  -> " + BOARD1_NAME + "  (" + BOARD1_PORT + ")  [not found]")
+
+    if found2:
+        sgr(32)
+        print("         con 2  -> " + BOARD2_NAME + "  (" + BOARD2_PORT + ")")
+    else:
+        sgr(31)
+        print("         con 2  -> " + BOARD2_NAME + "  (" + BOARD2_PORT + ")  [not found]")
+
+    if found0 and found1 and found2:
+        sgr(32)
+        print("         All boards online!")
+    else:
+        sgr(33)
+        print("         Some boards offline. Use 'status' for details.")
+
     sgr(0)
     print("")
     print("    +-----------------------------------------------+")
-    print("    |  AppleCon v1.0 - SageApple Board Controller  |")
+    print("    |  AppleCon v1.1 - SageApple Board Controller  |")
     print("    +-----------------------------------------------+")
     print("")
     show_board_icon()
@@ -109,10 +158,15 @@ proc chars_of(s):
         i = i + 1
     return out
 
-proc write_ssh_script(script_path, orange_port):
-    let body = "#!/bin/sh\n"
+proc write_connect_script(script_path, orange_port):
+    # Kill any stale screen session on the target port, then connect
+    var body = "#!/bin/sh\n"
     body = body + "sshpass -p '" + ORANGEPI_PASS + "' ssh -t -o StrictHostKeyChecking=no "
-    body = body + ORANGEPI_HOST + " 'screen " + orange_port + " " + BAUD + "'\n"
+    body = body + ORANGEPI_HOST + " '"
+    body = body + "pkill -f \"SCREEN " + orange_port + "\" 2>/dev/null; "
+    body = body + "sleep 1; "
+    body = body + "screen " + orange_port + " " + BAUD
+    body = body + "'\n"
     io.writebytes(script_path, chars_of(body))
 
 proc bytes_to_str(blob):
@@ -123,31 +177,13 @@ proc bytes_to_str(blob):
         i = i + 1
     return s
 
-proc connect_con0():
-    # Local board on this device
+proc connect_remote(orange_port, board_name):
     sgr(1)
     sgr(36)
-    print("    Connecting to local SageApple board on " + LOCAL_PORT + "...")
-    sgr(0)
-    if io.exists(LOCAL_PORT) == false:
-        sgr(1)
-        sgr(31)
-        print("    Port " + LOCAL_PORT + " not found on this device.")
-        sgr(0)
-        return
-    sgr(32)
-    print("    Connected. (screen: C-a d to detach, C-a k to kill, C-a ? help)")
-    print("    SageApple shell starting...")
-    sgr(0)
-    sys.exec("screen " + LOCAL_PORT + " " + BAUD)
-
-proc connect_remote(orange_port):
-    sgr(1)
-    sgr(36)
-    print("    Connecting via SSH to OrangePi board on " + orange_port + "...")
+    print("    Connecting via SSH to OrangePi: " + board_name + " on " + orange_port + "...")
     sgr(0)
     let script = "/tmp/con_orange_" + slice(orange_port, len(orange_port) - 1, len(orange_port)) + ".sh"
-    write_ssh_script(script, orange_port)
+    write_connect_script(script, orange_port)
     sgr(32)
     print("    Connected. (screen: C-a d to detach, C-a k to kill)")
     print("    SageApple shell starting...")
@@ -156,25 +192,31 @@ proc connect_remote(orange_port):
 
 proc try_connect(board_num):
     if board_num == 0:
-        connect_con0()
+        connect_remote(BOARD0_PORT, BOARD0_NAME)
     elif board_num == 1:
-        connect_remote(ORANGE_PORT0)
+        connect_remote(BOARD1_PORT, BOARD1_NAME)
     elif board_num == 2:
-        connect_remote(ORANGE_PORT1)
+        connect_remote(BOARD2_PORT, BOARD2_NAME)
+
+proc pad(s, width):
+    var result = s
+    while len(result) < width:
+        result = result + " "
+    return result
 
 proc show_help():
     sgr(1)
     sgr(33)
     print("")
     print("    Available commands:")
-    print("    +-----------------------------------+")
-    print("    | con 0   Connect to this board     |")
-    print("    | con 1   Connect to OrangePi #1    |")
-    print("    | con 2   Connect to OrangePi #2    |")
-    print("    | status  Show board status         |")
-    print("    | help    Show this help            |")
-    print("    | exit    Exit AppleCon             |")
-    print("    +-----------------------------------+")
+    print("    +--------------------------------------------+")
+    print("    | con 0   og Uno R3   (/dev/ttyUSB0)        |")
+    print("    | con 1   Nano R3     (/dev/ttyUSB1)        |")
+    print("    | con 2   2nd Uno R3  (/dev/ttyUSB2)        |")
+    print("    | status  Show board status                  |")
+    print("    | help    Show this help                     |")
+    print("    | exit    Exit AppleCon                      |")
+    print("    +--------------------------------------------+")
     print("")
     sgr(0)
 
@@ -183,43 +225,29 @@ proc show_status():
     sgr(36)
     print("")
     print("    Board Status:")
-    print("    +------+-----------------+------------------+--------+")
-    print("    | Port | Location        | Serial port      | Status |")
-    print("    +------+-----------------+------------------+--------+")
+    print("    +------+-------------+------------------+--------+")
+    print("    | Port | Board       | Serial port      | Status |")
+    print("    +------+-------------+------------------+--------+")
     sgr(0)
 
-    sgr(1)
-    if io.exists(LOCAL_PORT):
-        sgr(32)
-        print("    | 0    | this device     | " + LOCAL_PORT + "          | OK     |")
-    else:
-        sgr(31)
-        print("    | 0    | this device     | " + LOCAL_PORT + "          | down   |")
-    sgr(0)
-
-    # Remote ports are probed via ssh
-    var ports = [ORANGE_PORT0, ORANGE_PORT1]
-    var idx = 1
-    while idx <= 2:
-        let port = ports[idx - 1]
-        let script = "/tmp/probe_" + str(idx) + ".sh"
-        var body = "#!/bin/sh\n"
-        body = body + "sshpass -p '" + ORANGEPI_PASS + "' ssh -o StrictHostKeyChecking=no "
-        body = body + ORANGEPI_HOST + " 'ls " + port + "'\n"
-        io.writebytes(script, chars_of(body))
-        let res = sys.shell_exec("/bin/sh " + script)
-        let found = len(strip(res)) > 0
+    var ports = [BOARD0_PORT, BOARD1_PORT, BOARD2_PORT]
+    var names = [BOARD0_NAME, BOARD1_NAME, BOARD2_NAME]
+    var idx = 0
+    while idx < 3:
+        let port = ports[idx]
+        let name = names[idx]
+        let found = probe_remote_port(port)
         sgr(1)
         if found:
             sgr(32)
-            print("    | " + str(idx) + "    | OrangePi        | " + port + "          | OK     |")
+            print("    | " + str(idx) + "    | " + pad(name, 12) + " | " + port + " | OK     |")
         else:
             sgr(31)
-            print("    | " + str(idx) + "    | OrangePi        | " + port + "          | down   |")
+            print("    | " + str(idx) + "    | " + pad(name, 12) + " | " + port + " | down   |")
         sgr(0)
         idx = idx + 1
 
-    print("    +------+-----------------+------------------+--------+")
+    print("    +------+-------------+------------------+--------+")
     print("")
 
 proc shell_loop():

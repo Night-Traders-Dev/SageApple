@@ -72,22 +72,28 @@ interactive `sage> ` shell.
 sage-c tools/applecon.sage      # from the repo root
 ```
 
+All three boards are wired to the OrangePi and reached over SSH:
+
+| con | board | serial port |
+|-----|-------|-------------|
+| `0` | og Uno R3 | `/dev/ttyUSB0` |
+| `1` | Nano R3 | `/dev/ttyUSB1` |
+| `2` | 2nd Uno R3 | `/dev/ttyUSB2` (needs `cdc_acm`) |
+
 Commands:
 
 | command | action |
 |---|---|
-| `con 0` | connect to the board wired to **this** device (`/dev/ttyUSB0`) |
-| `con 1` | connect to the first board on the OrangePi (`/dev/ttyUSB0`) |
-| `con 2` | connect to the second board on the OrangePi (`/dev/ttyUSB1`) |
-| `status` | probe each port and report which boards are present |
-| `help` | show the command list |
-| `exit` | leave AppleCon |
+| `sage> con 0` | SSH to the OrangePi and connect to the og Uno R3 |
+| `sage> con 1` | SSH to the OrangePi and connect to the Nano R3 |
+| `sage> con 2` | SSH to the OrangePi and connect to the 2nd Uno R3 |
+| `sage> status` | probe each port and report which boards are present |
+| `sage> help` | show the command list |
+| `sage> exit` | leave AppleCon |
 
 Connection is handed off to `screen` for an interactive serial terminal
-(exits back to the `sage> ` prompt with `C-a d`/`C-a k`). The remote
-OrangePi connections go through `ssh` (wrapped in a helper script because
-`sys.exec` forbids the `@` in `user@host`), with the board shell running
-over the SSH TTY.
+(exits back to the `sage> ` prompt with `C-a d`/`C-a k`). Stale
+detached screen sessions are automatically killed before each connect.
 
 > **Note:** run AppleCon with the C build (`sage-c`). The self-hosted
 > RISC-V `sage` interpreter is unstable with the animation/shell loop.
