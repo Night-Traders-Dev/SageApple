@@ -72,6 +72,8 @@ interactive `sage> ` shell.
 sage-c tools/applecon.sage      # from the repo root
 ```
 
+Set `SAGEAPPLE_SSH_PASSWORD` in the environment before running AppleCon. The OrangePi host key must already be present in `known_hosts`; AppleCon refuses unknown hosts.
+
 All three boards are wired to the OrangePi and reached over SSH:
 
 | con | board | serial port |

@@ -71,6 +71,19 @@ while k < len(blob):
         break
     k = k + 1
 check(eq and k == len(blob), "load_blob round-trips 300 bytes")
+let lower_got = st.load_blob("data")
+var lower_eq = len(lower_got) == len(blob)
+var lower_i = 0
+while lower_i < len(blob):
+    if lower_got[lower_i] != blob[lower_i]:
+        lower_eq = false
+    lower_i = lower_i + 1
+check(lower_eq, "load_blob is case-insensitive")
+let data_index = st.find("DATA")
+let start_before = st.read_byte(st.dir_off(data_index) + 14) | (st.read_byte(st.dir_off(data_index) + 15) << 8)
+check(st.save_blob("DATA", blob) == 0, "overwrite_blob succeeds")
+let start_after = st.read_byte(st.dir_off(data_index) + 14) | (st.read_byte(st.dir_off(data_index) + 15) << 8)
+check(start_before == start_after, "overwrite reuses allocation")
 check(st.size_of("DATA") == 300, "DATA size reported")
 check(st.size_of("MISSING") == -1, "missing file reports -1")
 

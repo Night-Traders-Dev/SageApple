@@ -32,12 +32,15 @@ class Flash:
         self.cmd = 0               # 11=program stream, 12=id stream
         self.argv = []
         self.addr = 0
+        self.page_base = 0
         self.idx = 0
         self.out = 0xFF            # byte available to the master
 
     ## ---- SPI slave side ----
     proc spi_cs(self, level):
         if level == 0:
+            if self.cmd == 0x02 or self.cmd == 0x20:
+                self.wel = 0
             self.expect = 0
             self.cmd = 0
             self.argv = []
@@ -77,6 +80,7 @@ class Flash:
                     self.expect = 10
                     self.out = self.mem[self.addr & (self.size - 1)]
                 elif self.cmd == 0x02:
+                    self.page_base = self.addr & 0xFFFFFF00
                     self.expect = 11
                 elif self.cmd == 0x20:
                     self.expect = 0
@@ -92,7 +96,8 @@ class Flash:
             self.out = self.mem[self.addr & (self.size - 1)]
         elif self.expect == 11:
             if self.wel:
-                self.mem[self.addr & (self.size - 1)] = b & 0xFF
+                let target = (self.page_base | (self.addr & 0xFF)) & (self.size - 1)
+                self.mem[target] = self.mem[target] & b
             self.addr = self.addr + 1
         elif self.expect == 12:
             self.idx = self.idx + 1

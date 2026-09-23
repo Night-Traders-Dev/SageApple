@@ -82,7 +82,7 @@ if fresh:
     let nb = catalog.install_basic_apps(m.bus.storage, [])
     let n6 = catalog.install_6502_app(m.bus.storage)
     if do_test:
-        check(nb == 3, "fresh disk: three BASIC apps installed")
+        check(nb == 12, "fresh disk: twelve BASIC apps installed")
         check(n6 == 0, "fresh disk: 6502 app installed")
     else:
         print("  fresh SAGEFS disk -> " + image + " (" + str(nb) + " BASIC apps, 6502 app installed)")

@@ -87,11 +87,15 @@ let o2 = run_prog([
     "20 PRINT (3+4)*2",
     "30 PRINT -5+10",
     "40 PRINT 200/2",
+    "50 PRINT 1+(2+3)",
+    "60 IF 1+(2+3)=6 THEN PRINT \"NESTED\"",
 ])
 check(contains(o2, "HELLO\r\n"), "string literal")
 check(contains(o2, "14\r\n"), "(3+4)*2 = 14")
 check(contains(o2, "5\r\n"), "-5+10 = 5")
 check(contains(o2, "100\r\n"), "200/2 = 100")
+check(contains(o2, "6\r\n"), "nested right expression = 6")
+check(contains(o2, "NESTED"), "nested comparison expression = true")
 
 print("== GOTO / IF loop ==")
 let o3 = run_prog([

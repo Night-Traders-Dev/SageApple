@@ -57,6 +57,7 @@ class DOS:
         self.host = nil
         self.maxfiles = 3
         self.buffers = []
+        self.next_buffer = 1
         self.active_read = nil
         self.active_write = nil
         self.vol = 254
@@ -68,27 +69,6 @@ class DOS:
         self.out = ""
         self.exec_depth = 0
 
-    ## ---- EXEC ----
-    proc exec(self, rest):
-        if self.exec_depth >= 10:
-            self.err("EXEC DEPTH EXCEEDED")
-            return
-        let name = self._arg1(rest)
-        if name == "":
-            self.err("SYNTAX ERROR")
-            return
-        let lines = self.st.load_text(name)
-        var i = 0
-        self.exec_depth = self.exec_depth + 1
-        while i < len(lines) and self.host != nil:
-            let l = strip(lines[i])
-            if l != "":
-                self.host.command(l)
-                self.host.drain()
-            i = i + 1
-        self.exec_depth = self.exec_depth - 1
-        return -1
-
     proc drain(self):
         let s = self.out
         self.out = ""
@@ -98,14 +78,28 @@ class DOS:
         self.out = self.out + msg + "\r\n"
 
     proc _find_buf_num(self, n):
-        if n >= 1 and n <= len(self.buffers):
-            return n - 1
+        var i = 0
+        while i < len(self.buffers):
+            if self.buffers[i]["id"] == n:
+                return i
+            i = i + 1
+        return -1
+
+    proc _find_buf(self, name):
+        var i = 0
+        let key = upper(name)
+        while i < len(self.buffers):
+            if upper(self.buffers[i]["name"]) == key:
+                return i
+            i = i + 1
         return -1
 
     proc _close_buf(self, i):
         let b = self.buffers[i]
         if b["mode"] == "w" or b["mode"] == "a":
-            self.st.save_text(b["name"], b["lines"])
+            if self.st.save_text(b["name"], b["lines"]) != 0:
+                self.err("DISK FULL")
+                return 0
         let nb = []
         var k = 0
         while k < len(self.buffers):
@@ -121,10 +115,12 @@ class DOS:
             self.active_read = self.active_read - 1
         if self.active_write != nil and self.active_write > i:
             self.active_write = self.active_write - 1
+        return 1
 
     proc _close_all(self):
         while len(self.buffers) > 0:
-            self._close_buf(0)
+            if self._close_buf(0) == 0:
+                break
 
     ## ---- text I/O used by BASIC ----
     ## BASIC PRINT: if a line completes while a WRITE/APPEND buffer is
@@ -218,7 +214,7 @@ class DOS:
         elif verb == "EXEC":
             self.exec(rest)
         elif verb == "FP":
-            pass
+            return
         elif verb == "INT":
             self.err("LANGUAGE NOT AVAILABLE")
         else:
@@ -525,12 +521,16 @@ class DOS:
         if self._find_buf(name) >= 0:
             self.err("FILE ALREADY OPEN")
             return
-        if self.st.find(name) >= 0:
-            let t = self.st.file_type(name)
-            if t != 0x54:
-                self.err("FILE TYPE MISMATCH")
-                return
-        push(self.buffers, {"name": name, "mode": "r", "pos": 0, "lines": self.st.load_text(name)})
+        let existing = self.st.find(name)
+        if existing < 0:
+            self.err("FILE NOT FOUND")
+            return
+        let t = self.st.file_type(name)
+        if t != 0x54:
+            self.err("FILE TYPE MISMATCH")
+            return
+        push(self.buffers, {"id": self.next_buffer, "name": name, "mode": "r", "pos": 0, "lines": self.st.load_text(name)})
+        self.next_buffer = self.next_buffer + 1
 
     proc close(self, rest):
         let s = strip(rest)
@@ -610,9 +610,14 @@ class DOS:
         if len(self.buffers) >= self.maxfiles:
             self.err("NO BUFFERS AVAILABLE")
             return
+        let existing = self.st.find(name)
+        if existing >= 0 and self.st.type_at(existing) != 0x54:
+            self.err("FILE TYPE MISMATCH")
+            return
         var bi = self._find_buf(name)
         if bi < 0:
-            push(self.buffers, {"name": name, "mode": "a", "pos": 0, "lines": self.st.load_text(name)})
+            push(self.buffers, {"id": self.next_buffer, "name": name, "mode": "a", "pos": 0, "lines": self.st.load_text(name)})
+            self.next_buffer = self.next_buffer + 1
             bi = len(self.buffers) - 1
         else:
             self.buffers[bi]["mode"] = "a"
@@ -738,14 +743,20 @@ class DOS:
 
     ## ---- EXEC ----
     proc exec(self, rest):
+        if self.exec_depth >= 10:
+            self.err("EXEC DEPTH EXCEEDED")
+            return
         let name = self._arg1(rest)
         if name == "":
             self.err("SYNTAX ERROR")
             return
         let lines = self.st.load_text(name)
         var i = 0
+        self.exec_depth = self.exec_depth + 1
         while i < len(lines) and self.host != nil:
-            let l = lines[i]
-            if strip(l) != "":
+            let l = strip(lines[i])
+            if l != "":
                 self.host.command(l)
             i = i + 1
+        self.exec_depth = self.exec_depth - 1
+        return -1

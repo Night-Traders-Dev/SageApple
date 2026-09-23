@@ -27,7 +27,6 @@ import sys
 let ESC = "\x1b"
 
 let ORANGEPI_HOST = "orangepi@192.168.254.44"
-let ORANGEPI_PASS = "jdy@123"
 
 # All three boards are on the OrangePi
 let BOARD0_NAME = "og Uno R3"
@@ -88,13 +87,13 @@ proc port_suffix(port):
     return slice(port, len(port) - 1, len(port))
 
 proc probe_remote_port(port):
-    let tag = port_suffix(port)
-    let script = "/tmp/probe_" + tag + ".sh"
+    let script = strip(sys.shell_exec("mktemp /tmp/applecon_probe_XXXXXX"))
     var body = "#!/bin/sh\n"
-    body = body + "sshpass -p '" + ORANGEPI_PASS + "' ssh -o StrictHostKeyChecking=no "
+    body = body + "SSHPASS=\"$SAGEAPPLE_SSH_PASSWORD\" sshpass -e ssh -o StrictHostKeyChecking=yes "
     body = body + ORANGEPI_HOST + " 'ls " + port + " 2>/dev/null' < /dev/null\n"
     io.writebytes(script, chars_of(body))
     let res = sys.shell_exec("/bin/sh " + script)
+    sys.shell_exec("rm -f " + script)
     return len(strip(res)) > 0
 
 proc run_tui():
@@ -161,7 +160,7 @@ proc chars_of(s):
 proc write_connect_script(script_path, orange_port):
     # Kill any stale screen session on the target port, then connect
     var body = "#!/bin/sh\n"
-    body = body + "sshpass -p '" + ORANGEPI_PASS + "' ssh -t -o StrictHostKeyChecking=no "
+    body = body + "SSHPASS=\"$SAGEAPPLE_SSH_PASSWORD\" sshpass -e ssh -t -o StrictHostKeyChecking=yes "
     body = body + ORANGEPI_HOST + " '"
     body = body + "pkill -f \"SCREEN " + orange_port + "\" 2>/dev/null; "
     body = body + "sleep 1; "
@@ -182,13 +181,14 @@ proc connect_remote(orange_port, board_name):
     sgr(36)
     print("    Connecting via SSH to OrangePi: " + board_name + " on " + orange_port + "...")
     sgr(0)
-    let script = "/tmp/con_orange_" + slice(orange_port, len(orange_port) - 1, len(orange_port)) + ".sh"
+    let script = strip(sys.shell_exec("mktemp /tmp/applecon_con_XXXXXX"))
     write_connect_script(script, orange_port)
     sgr(32)
     print("    Connected. (screen: C-a d to detach, C-a k to kill)")
     print("    SageApple shell starting...")
     sgr(0)
     sys.exec("/bin/sh " + script)
+    sys.shell_exec("rm -f " + script)
 
 proc try_connect(board_num):
     if board_num == 0:

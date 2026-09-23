@@ -47,9 +47,11 @@ proc rows_for(builder):
         var c = 0
         while c < 16:
             rows = rows + items[r * 16 + c]
-            if r * 16 + c < 255:
-                rows = rows + ",   "
+            if c < 15:
+                rows = rows + ", "
             c = c + 1
+        if r < 15:
+            rows = rows + ","
         rows = rows + "\n"
         r = r + 1
     return rows

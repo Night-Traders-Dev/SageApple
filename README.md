@@ -43,7 +43,7 @@ hardware:
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 | M14 | Apple II software stack: DOS 3.3 command processor, full Applesoft BASIC, host Apple II monitor (`*` dumps/disassembly/go), unified `]` BASIC / `*` monitor shell, SAGEFS v2 with DOS file types |
 
-Host suites: **16 modules, 285 checks passing** — plus the AVR host
+Host suites: **16 modules, 318 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture

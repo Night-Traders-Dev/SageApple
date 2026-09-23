@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **15 SageLang suites: 266 checks**, each
+SageApple is validated by **16 SageLang suites: 318 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -18,19 +18,19 @@ sage tests/boot/test_monitor.sage
 | `tests/6502/test_opcodes.sage` | 21 | abs,X / abs,Y addressing, page wrap, stack, JSR/RTS, branches, IRQ/RTI, JMP ($xxFF) page-wrap, cycle-exact page-cross accounting |
 | `tests/6502/test_exhaustive.sage` | 20 | ADC binary/decimal, SBC binary, branch cycle timing, page-cross penalties, JMP indirect page-wrap, IRQ/NMI B flags, PHP B flag, PLP bit 5 normalization, NMI priority |
 | `tests/compiler/test_asm6502.sage` | 11 | assembler encodes real 6502, labels resolve, program runs on the host emulator |
-| `tests/compiler/test_backend.sage` | 20 | compiled BASIC output equality (arithmetic, strings, GOTO/IF, comparisons, div-0) |
+| `tests/compiler/test_backend.sage` | 22 | compiled BASIC output equality (arithmetic, strings, GOTO/IF, comparisons, div-0) |
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
 | `tests/boot/test_uart.sage` | 8 | UART device RX/TX/status + echo-terminal |
 | `tests/boot/test_monitor.sage` | 10 | monitor session (help/poke/peek/dump/regs/run/reset/unknown) |
 | `tests/basic/test_basic.sage` | 49 | Applesoft arithmetic, strings, functions, control flow, errors |
 | `tests/display/test_spi.sage` | 9 | SPI framing, CS, loopback, counters |
 | `tests/display/test_display.sage` | 29 | OLED decode, windows, pixels/lines/text, 6502-driven |
-| `tests/storage/test_flash.sage` | 19 | flash IDs, WEL, program/read, sector erase, 6502-driven |
-| `tests/storage/test_fs.sage` | 26 | SAGEFS v2 round-trips, limits, persistence, BASIC save/load |
+| `tests/storage/test_flash.sage` | 21 | flash IDs, WEL, program/read, sector erase, NOR protection, 6502-driven |
+| `tests/storage/test_fs.sage` | 29 | SAGEFS v2 round-trips, limits, persistence, overwrite allocation, BASIC save/load |
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
-| `tests/machine/test_apple2.sage` | 33 | DOS 3.3 verbs, file types, monitor shell, CALL -151 |
-| **Total** | **285** | |
+| `tests/machine/test_apple2.sage` | 39 | DOS 3.3 verbs, file types, monitor shell, CALL -151, buffers, EXEC, device errors |
+| **Total** | **318** | |
 
 ## How suites assert
 

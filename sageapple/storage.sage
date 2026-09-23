@@ -179,12 +179,24 @@ class Storage:
             j = j + 1
         return 0
 
+    proc erase_blocks(self, start, blocks):
+        var b = start
+        var k = 0
+        while k < blocks and b < _BLOCKS:
+            let off = b * _BLOCK
+            var j = 0
+            while j < _BLOCK:
+                self.write_byte(off + j, 0xFF)
+                j = j + 1
+            b = b + 1
+            k = k + 1
+
     ## first-fit run of `need` consecutive free data blocks
-    proc find_free_run(self, need):
+    proc find_free_run(self, need, skip_slot):
         var used = []
         var i = 0
         while i < _ENTRIES:
-            if self.name_at(i) != "":
+            if i != skip_slot and self.name_at(i) != "":
                 let o = self.dir_off(i)
                 let sz = self.read_byte(o + 12) | (self.read_byte(o + 13) << 8)
                 let st = self.read_byte(o + 14) | (self.read_byte(o + 15) << 8)
@@ -219,11 +231,12 @@ class Storage:
             n = 12
         if n == 0:
             return -1
+        let key = upper(name)
         var slot = -1
         var i = 0
         while i < _ENTRIES:
             let nm = self.name_at(i)
-            if nm == name:
+            if upper(nm) == key:
                 slot = i
                 break
             if nm == "" and slot == -1:
@@ -232,10 +245,18 @@ class Storage:
         if slot == -1:
             return -1
         let o = self.dir_off(slot)
+        let old_start = -1
+        let old_blocks = 0
+        if self.name_at(slot) != "":
+            let old_size = self.read_byte(o + 12) | (self.read_byte(o + 13) << 8)
+            old_start = self.read_byte(o + 14) | (self.read_byte(o + 15) << 8)
+            old_blocks = int((old_size + _BLOCK - 1) / _BLOCK)
         let need = int((len(blob) + _BLOCK - 1) / _BLOCK) + 1
-        let start = self.find_free_run(need)
+        let start = self.find_free_run(need, slot)
         if start == -1:
             return -1
+        if old_start >= 0 and old_start != start:
+            self.erase_blocks(old_start, old_blocks)
         var j = 0
         while j < 12:
             if j < n:
@@ -261,9 +282,10 @@ class Storage:
     ## load raw bytes back ([] if missing)
     proc load_blob(self, name):
         var slot = -1
+        let key = upper(name)
         var i = 0
         while i < _ENTRIES:
-            if self.name_at(i) == name:
+            if upper(self.name_at(i)) == key:
                 slot = i
                 break
             i = i + 1
@@ -347,17 +369,7 @@ class Storage:
         let o = self.dir_off(slot)
         let sz = self.read_byte(o + 12) | (self.read_byte(o + 13) << 8)
         let st = self.read_byte(o + 14) | (self.read_byte(o + 15) << 8)
-        var b = st
-        let blocks = (sz + _BLOCK - 1) / _BLOCK
-        var k = 0
-        while k < blocks and b < _BLOCKS:
-            let off = b * _BLOCK
-            var j = 0
-            while j < _BLOCK:
-                self.write_byte(off + j, 0xFF)
-                j = j + 1
-            b = b + 1
-            k = k + 1
+        self.erase_blocks(st, int((sz + _BLOCK - 1) / _BLOCK))
         var j = 0
         while j < _ENTRY:
             self.write_byte(o + j, 0)

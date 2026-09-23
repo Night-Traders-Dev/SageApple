@@ -357,9 +357,11 @@ class Compiler:
     ## compare left vs right: Z set if equal, C set if left >= right
     proc gen_cmp(self, cond):
         self.gen_expr(cond[2])
-        self.em("    STA $7C")
+        self.em("    PHA")
         self.gen_expr(cond[3])
         self.em("    STA $7E")
+        self.em("    PLA")
+        self.em("    STA $7C")
         self.em("    LDA $7C")
         self.em("    SEC")
         self.em("    SBC $7E")
@@ -379,23 +381,22 @@ class Compiler:
         else:
             let op = a[1]
             self.gen_expr(a[2])
-            self.em("    STA $7C")
+            self.em("    PHA")
             self.gen_expr(a[3])
+            self.em("    STA $7E")
+            self.em("    PLA")
+            self.em("    STA $7C")
             if op == "+":
+                self.em("    LDA $7E")
                 self.em("    CLC")
                 self.em("    ADC $7C")
             elif op == "-":
-                self.em("    STA $7E")
                 self.em("    LDA $7C")
                 self.em("    SEC")
                 self.em("    SBC $7E")
             elif op == "*":
-                self.em("    STA $7E")
-                self.em("    LDA $7C")
                 self.em("    JSR R_MUL")
             else:
-                self.em("    STA $7E")
-                self.em("    LDA $7C")
                 self.em("    JSR R_DIV")
 
     ## ---------------- runtime helpers --------------------------------

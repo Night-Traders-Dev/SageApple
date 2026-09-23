@@ -68,41 +68,41 @@ static uint8_t F_C(void) { return (rP & FL_C) ? 1 : 0; }
 /* ---- opcode table: (id << 4) | mode ---- */
 #ifndef HOST
 static const uint16_t OP[256] PROGMEM = {
-    /*00*/ 46<<4|M_IMP,   19<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ZP,   31<<4|M_ZP,   0<<4|M_IMP,   13<<4|M_IMP,   19<<4|M_IMM,   31<<4|M_ACC,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ABS,   31<<4|M_ABS,   0<<4|M_IMP,   
-    /*10*/ 40<<4|M_REL,   19<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ZPX,   31<<4|M_ZPX,   0<<4|M_IMP,   49<<4|M_IMP,   19<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ABSX,   31<<4|M_ABSX,   0<<4|M_IMP,   
-    /*20*/ 44<<4|M_ABS,   18<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   21<<4|M_ZP,   18<<4|M_ZP,   33<<4|M_ZP,   0<<4|M_IMP,   15<<4|M_IMP,   18<<4|M_IMM,   33<<4|M_ACC,   0<<4|M_IMP,   21<<4|M_ABS,   18<<4|M_ABS,   33<<4|M_ABS,   0<<4|M_IMP,   
-    /*30*/ 38<<4|M_REL,   18<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   18<<4|M_ZPX,   33<<4|M_ZPX,   0<<4|M_IMP,   53<<4|M_IMP,   18<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   18<<4|M_ABSX,   33<<4|M_ABSX,   0<<4|M_IMP,   
-    /*40*/ 47<<4|M_IMP,   20<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   20<<4|M_ZP,   32<<4|M_ZP,   0<<4|M_IMP,   12<<4|M_IMP,   20<<4|M_IMM,   32<<4|M_ACC,   0<<4|M_IMP,   43<<4|M_ABS,   20<<4|M_ABS,   32<<4|M_ABS,   0<<4|M_IMP,   
-    /*50*/ 41<<4|M_REL,   20<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   20<<4|M_ZPX,   32<<4|M_ZPX,   0<<4|M_IMP,   51<<4|M_IMP,   20<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   20<<4|M_ABSX,   32<<4|M_ABSX,   0<<4|M_IMP,   
-    /*60*/ 45<<4|M_IMP,   16<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   16<<4|M_ZP,   34<<4|M_ZP,   0<<4|M_IMP,   14<<4|M_IMP,   16<<4|M_IMM,   34<<4|M_ACC,   0<<4|M_IMP,   43<<4|M_IND,   16<<4|M_ABS,   34<<4|M_ABS,   0<<4|M_IMP,   
-    /*70*/ 42<<4|M_REL,   16<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   16<<4|M_ZPX,   34<<4|M_ZPX,   0<<4|M_IMP,   55<<4|M_IMP,   16<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   16<<4|M_ABSX,   34<<4|M_ABSX,   0<<4|M_IMP,   
-    /*80*/ 0<<4|M_IMP,   3<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   5<<4|M_ZP,   3<<4|M_ZP,   4<<4|M_ZP,   0<<4|M_IMP,   30<<4|M_IMP,   0<<4|M_IMP,   7<<4|M_IMP,   0<<4|M_IMP,   5<<4|M_ABS,   3<<4|M_ABS,   4<<4|M_ABS,   0<<4|M_IMP,   
-    /*90*/ 35<<4|M_REL,   3<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   5<<4|M_ZPX,   3<<4|M_ZPX,   4<<4|M_ZPY,   0<<4|M_IMP,   9<<4|M_IMP,   3<<4|M_ABSY,   11<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   3<<4|M_ABSX,   0<<4|M_IMP,   0<<4|M_IMP,   
-    /*A0*/ 2<<4|M_IMM,   0<<4|M_INDX,   1<<4|M_IMM,   0<<4|M_IMP,   2<<4|M_ZP,   0<<4|M_ZP,   1<<4|M_ZP,   0<<4|M_IMP,   8<<4|M_IMP,   0<<4|M_IMM,   6<<4|M_IMP,   0<<4|M_IMP,   2<<4|M_ABS,   0<<4|M_ABS,   1<<4|M_ABS,   0<<4|M_IMP,   
-    /*B0*/ 36<<4|M_REL,   0<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   2<<4|M_ZPX,   0<<4|M_ZPX,   1<<4|M_ZPY,   0<<4|M_IMP,   52<<4|M_IMP,   0<<4|M_ABSY,   10<<4|M_IMP,   0<<4|M_IMP,   2<<4|M_ABSX,   0<<4|M_ABSX,   1<<4|M_ABSY,   0<<4|M_IMP,   
-    /*C0*/ 24<<4|M_IMM,   22<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   24<<4|M_ZP,   22<<4|M_ZP,   26<<4|M_ZP,   0<<4|M_IMP,   28<<4|M_IMP,   22<<4|M_IMM,   29<<4|M_IMP,   0<<4|M_IMP,   24<<4|M_ABS,   22<<4|M_ABS,   26<<4|M_ABS,   0<<4|M_IMP,   
-    /*D0*/ 39<<4|M_REL,   22<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   22<<4|M_ZPX,   26<<4|M_ZPX,   0<<4|M_IMP,   50<<4|M_IMP,   22<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   22<<4|M_ABSX,   26<<4|M_ABSX,   0<<4|M_IMP,   
-    /*E0*/ 23<<4|M_IMM,   17<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   23<<4|M_ZP,   17<<4|M_ZP,   25<<4|M_ZP,   0<<4|M_IMP,   27<<4|M_IMP,   17<<4|M_IMM,   48<<4|M_IMP,   0<<4|M_IMP,   23<<4|M_ABS,   17<<4|M_ABS,   25<<4|M_ABS,   0<<4|M_IMP,   
-    /*F0*/ 37<<4|M_REL,   17<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   17<<4|M_ZPX,   25<<4|M_ZPX,   0<<4|M_IMP,   54<<4|M_IMP,   17<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   17<<4|M_ABSX,   25<<4|M_ABSX,   0<<4|M_IMP
+    /*00*/ 46<<4|M_IMP, 19<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ZP, 31<<4|M_ZP, 0<<4|M_IMP, 13<<4|M_IMP, 19<<4|M_IMM, 31<<4|M_ACC, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ABS, 31<<4|M_ABS, 0<<4|M_IMP,
+    /*10*/ 40<<4|M_REL, 19<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ZPX, 31<<4|M_ZPX, 0<<4|M_IMP, 49<<4|M_IMP, 19<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ABSX, 31<<4|M_ABSX, 0<<4|M_IMP,
+    /*20*/ 44<<4|M_ABS, 18<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 21<<4|M_ZP, 18<<4|M_ZP, 33<<4|M_ZP, 0<<4|M_IMP, 15<<4|M_IMP, 18<<4|M_IMM, 33<<4|M_ACC, 0<<4|M_IMP, 21<<4|M_ABS, 18<<4|M_ABS, 33<<4|M_ABS, 0<<4|M_IMP,
+    /*30*/ 38<<4|M_REL, 18<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 18<<4|M_ZPX, 33<<4|M_ZPX, 0<<4|M_IMP, 53<<4|M_IMP, 18<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 18<<4|M_ABSX, 33<<4|M_ABSX, 0<<4|M_IMP,
+    /*40*/ 47<<4|M_IMP, 20<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 20<<4|M_ZP, 32<<4|M_ZP, 0<<4|M_IMP, 12<<4|M_IMP, 20<<4|M_IMM, 32<<4|M_ACC, 0<<4|M_IMP, 43<<4|M_ABS, 20<<4|M_ABS, 32<<4|M_ABS, 0<<4|M_IMP,
+    /*50*/ 41<<4|M_REL, 20<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 20<<4|M_ZPX, 32<<4|M_ZPX, 0<<4|M_IMP, 51<<4|M_IMP, 20<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 20<<4|M_ABSX, 32<<4|M_ABSX, 0<<4|M_IMP,
+    /*60*/ 45<<4|M_IMP, 16<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 16<<4|M_ZP, 34<<4|M_ZP, 0<<4|M_IMP, 14<<4|M_IMP, 16<<4|M_IMM, 34<<4|M_ACC, 0<<4|M_IMP, 43<<4|M_IND, 16<<4|M_ABS, 34<<4|M_ABS, 0<<4|M_IMP,
+    /*70*/ 42<<4|M_REL, 16<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 16<<4|M_ZPX, 34<<4|M_ZPX, 0<<4|M_IMP, 55<<4|M_IMP, 16<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 16<<4|M_ABSX, 34<<4|M_ABSX, 0<<4|M_IMP,
+    /*80*/ 0<<4|M_IMP, 3<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 5<<4|M_ZP, 3<<4|M_ZP, 4<<4|M_ZP, 0<<4|M_IMP, 30<<4|M_IMP, 0<<4|M_IMP, 7<<4|M_IMP, 0<<4|M_IMP, 5<<4|M_ABS, 3<<4|M_ABS, 4<<4|M_ABS, 0<<4|M_IMP,
+    /*90*/ 35<<4|M_REL, 3<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 5<<4|M_ZPX, 3<<4|M_ZPX, 4<<4|M_ZPY, 0<<4|M_IMP, 9<<4|M_IMP, 3<<4|M_ABSY, 11<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 3<<4|M_ABSX, 0<<4|M_IMP, 0<<4|M_IMP,
+    /*A0*/ 2<<4|M_IMM, 0<<4|M_INDX, 1<<4|M_IMM, 0<<4|M_IMP, 2<<4|M_ZP, 0<<4|M_ZP, 1<<4|M_ZP, 0<<4|M_IMP, 8<<4|M_IMP, 0<<4|M_IMM, 6<<4|M_IMP, 0<<4|M_IMP, 2<<4|M_ABS, 0<<4|M_ABS, 1<<4|M_ABS, 0<<4|M_IMP,
+    /*B0*/ 36<<4|M_REL, 0<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 2<<4|M_ZPX, 0<<4|M_ZPX, 1<<4|M_ZPY, 0<<4|M_IMP, 52<<4|M_IMP, 0<<4|M_ABSY, 10<<4|M_IMP, 0<<4|M_IMP, 2<<4|M_ABSX, 0<<4|M_ABSX, 1<<4|M_ABSY, 0<<4|M_IMP,
+    /*C0*/ 24<<4|M_IMM, 22<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 24<<4|M_ZP, 22<<4|M_ZP, 26<<4|M_ZP, 0<<4|M_IMP, 28<<4|M_IMP, 22<<4|M_IMM, 29<<4|M_IMP, 0<<4|M_IMP, 24<<4|M_ABS, 22<<4|M_ABS, 26<<4|M_ABS, 0<<4|M_IMP,
+    /*D0*/ 39<<4|M_REL, 22<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 22<<4|M_ZPX, 26<<4|M_ZPX, 0<<4|M_IMP, 50<<4|M_IMP, 22<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 22<<4|M_ABSX, 26<<4|M_ABSX, 0<<4|M_IMP,
+    /*E0*/ 23<<4|M_IMM, 17<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 23<<4|M_ZP, 17<<4|M_ZP, 25<<4|M_ZP, 0<<4|M_IMP, 27<<4|M_IMP, 17<<4|M_IMM, 48<<4|M_IMP, 0<<4|M_IMP, 23<<4|M_ABS, 17<<4|M_ABS, 25<<4|M_ABS, 0<<4|M_IMP,
+    /*F0*/ 37<<4|M_REL, 17<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 17<<4|M_ZPX, 25<<4|M_ZPX, 0<<4|M_IMP, 54<<4|M_IMP, 17<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 17<<4|M_ABSX, 25<<4|M_ABSX, 0<<4|M_IMP
 };
 #else
 static const uint16_t OP[256] = {
-    /*00*/ 46<<4|M_IMP,   19<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ZP,   31<<4|M_ZP,   0<<4|M_IMP,   13<<4|M_IMP,   19<<4|M_IMM,   31<<4|M_ACC,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ABS,   31<<4|M_ABS,   0<<4|M_IMP,   
-    /*10*/ 40<<4|M_REL,   19<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ZPX,   31<<4|M_ZPX,   0<<4|M_IMP,   49<<4|M_IMP,   19<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   19<<4|M_ABSX,   31<<4|M_ABSX,   0<<4|M_IMP,   
-    /*20*/ 44<<4|M_ABS,   18<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   21<<4|M_ZP,   18<<4|M_ZP,   33<<4|M_ZP,   0<<4|M_IMP,   15<<4|M_IMP,   18<<4|M_IMM,   33<<4|M_ACC,   0<<4|M_IMP,   21<<4|M_ABS,   18<<4|M_ABS,   33<<4|M_ABS,   0<<4|M_IMP,   
-    /*30*/ 38<<4|M_REL,   18<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   18<<4|M_ZPX,   33<<4|M_ZPX,   0<<4|M_IMP,   53<<4|M_IMP,   18<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   18<<4|M_ABSX,   33<<4|M_ABSX,   0<<4|M_IMP,   
-    /*40*/ 47<<4|M_IMP,   20<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   20<<4|M_ZP,   32<<4|M_ZP,   0<<4|M_IMP,   12<<4|M_IMP,   20<<4|M_IMM,   32<<4|M_ACC,   0<<4|M_IMP,   43<<4|M_ABS,   20<<4|M_ABS,   32<<4|M_ABS,   0<<4|M_IMP,   
-    /*50*/ 41<<4|M_REL,   20<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   20<<4|M_ZPX,   32<<4|M_ZPX,   0<<4|M_IMP,   51<<4|M_IMP,   20<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   20<<4|M_ABSX,   32<<4|M_ABSX,   0<<4|M_IMP,   
-    /*60*/ 45<<4|M_IMP,   16<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   16<<4|M_ZP,   34<<4|M_ZP,   0<<4|M_IMP,   14<<4|M_IMP,   16<<4|M_IMM,   34<<4|M_ACC,   0<<4|M_IMP,   43<<4|M_IND,   16<<4|M_ABS,   34<<4|M_ABS,   0<<4|M_IMP,   
-    /*70*/ 42<<4|M_REL,   16<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   16<<4|M_ZPX,   34<<4|M_ZPX,   0<<4|M_IMP,   55<<4|M_IMP,   16<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   16<<4|M_ABSX,   34<<4|M_ABSX,   0<<4|M_IMP,   
-    /*80*/ 0<<4|M_IMP,   3<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   5<<4|M_ZP,   3<<4|M_ZP,   4<<4|M_ZP,   0<<4|M_IMP,   30<<4|M_IMP,   0<<4|M_IMP,   7<<4|M_IMP,   0<<4|M_IMP,   5<<4|M_ABS,   3<<4|M_ABS,   4<<4|M_ABS,   0<<4|M_IMP,   
-    /*90*/ 35<<4|M_REL,   3<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   5<<4|M_ZPX,   3<<4|M_ZPX,   4<<4|M_ZPY,   0<<4|M_IMP,   9<<4|M_IMP,   3<<4|M_ABSY,   11<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   3<<4|M_ABSX,   0<<4|M_IMP,   0<<4|M_IMP,   
-    /*A0*/ 2<<4|M_IMM,   0<<4|M_INDX,   1<<4|M_IMM,   0<<4|M_IMP,   2<<4|M_ZP,   0<<4|M_ZP,   1<<4|M_ZP,   0<<4|M_IMP,   8<<4|M_IMP,   0<<4|M_IMM,   6<<4|M_IMP,   0<<4|M_IMP,   2<<4|M_ABS,   0<<4|M_ABS,   1<<4|M_ABS,   0<<4|M_IMP,   
-    /*B0*/ 36<<4|M_REL,   0<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   2<<4|M_ZPX,   0<<4|M_ZPX,   1<<4|M_ZPY,   0<<4|M_IMP,   52<<4|M_IMP,   0<<4|M_ABSY,   10<<4|M_IMP,   0<<4|M_IMP,   2<<4|M_ABSX,   0<<4|M_ABSX,   1<<4|M_ABSY,   0<<4|M_IMP,   
-    /*C0*/ 24<<4|M_IMM,   22<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   24<<4|M_ZP,   22<<4|M_ZP,   26<<4|M_ZP,   0<<4|M_IMP,   28<<4|M_IMP,   22<<4|M_IMM,   29<<4|M_IMP,   0<<4|M_IMP,   24<<4|M_ABS,   22<<4|M_ABS,   26<<4|M_ABS,   0<<4|M_IMP,   
-    /*D0*/ 39<<4|M_REL,   22<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   22<<4|M_ZPX,   26<<4|M_ZPX,   0<<4|M_IMP,   50<<4|M_IMP,   22<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   22<<4|M_ABSX,   26<<4|M_ABSX,   0<<4|M_IMP,   
-    /*E0*/ 23<<4|M_IMM,   17<<4|M_INDX,   0<<4|M_IMP,   0<<4|M_IMP,   23<<4|M_ZP,   17<<4|M_ZP,   25<<4|M_ZP,   0<<4|M_IMP,   27<<4|M_IMP,   17<<4|M_IMM,   48<<4|M_IMP,   0<<4|M_IMP,   23<<4|M_ABS,   17<<4|M_ABS,   25<<4|M_ABS,   0<<4|M_IMP,   
-    /*F0*/ 37<<4|M_REL,   17<<4|M_INDY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   17<<4|M_ZPX,   25<<4|M_ZPX,   0<<4|M_IMP,   54<<4|M_IMP,   17<<4|M_ABSY,   0<<4|M_IMP,   0<<4|M_IMP,   0<<4|M_IMP,   17<<4|M_ABSX,   25<<4|M_ABSX,   0<<4|M_IMP
+    /*00*/ 46<<4|M_IMP, 19<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ZP, 31<<4|M_ZP, 0<<4|M_IMP, 13<<4|M_IMP, 19<<4|M_IMM, 31<<4|M_ACC, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ABS, 31<<4|M_ABS, 0<<4|M_IMP,
+    /*10*/ 40<<4|M_REL, 19<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ZPX, 31<<4|M_ZPX, 0<<4|M_IMP, 49<<4|M_IMP, 19<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 19<<4|M_ABSX, 31<<4|M_ABSX, 0<<4|M_IMP,
+    /*20*/ 44<<4|M_ABS, 18<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 21<<4|M_ZP, 18<<4|M_ZP, 33<<4|M_ZP, 0<<4|M_IMP, 15<<4|M_IMP, 18<<4|M_IMM, 33<<4|M_ACC, 0<<4|M_IMP, 21<<4|M_ABS, 18<<4|M_ABS, 33<<4|M_ABS, 0<<4|M_IMP,
+    /*30*/ 38<<4|M_REL, 18<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 18<<4|M_ZPX, 33<<4|M_ZPX, 0<<4|M_IMP, 53<<4|M_IMP, 18<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 18<<4|M_ABSX, 33<<4|M_ABSX, 0<<4|M_IMP,
+    /*40*/ 47<<4|M_IMP, 20<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 20<<4|M_ZP, 32<<4|M_ZP, 0<<4|M_IMP, 12<<4|M_IMP, 20<<4|M_IMM, 32<<4|M_ACC, 0<<4|M_IMP, 43<<4|M_ABS, 20<<4|M_ABS, 32<<4|M_ABS, 0<<4|M_IMP,
+    /*50*/ 41<<4|M_REL, 20<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 20<<4|M_ZPX, 32<<4|M_ZPX, 0<<4|M_IMP, 51<<4|M_IMP, 20<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 20<<4|M_ABSX, 32<<4|M_ABSX, 0<<4|M_IMP,
+    /*60*/ 45<<4|M_IMP, 16<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 16<<4|M_ZP, 34<<4|M_ZP, 0<<4|M_IMP, 14<<4|M_IMP, 16<<4|M_IMM, 34<<4|M_ACC, 0<<4|M_IMP, 43<<4|M_IND, 16<<4|M_ABS, 34<<4|M_ABS, 0<<4|M_IMP,
+    /*70*/ 42<<4|M_REL, 16<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 16<<4|M_ZPX, 34<<4|M_ZPX, 0<<4|M_IMP, 55<<4|M_IMP, 16<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 16<<4|M_ABSX, 34<<4|M_ABSX, 0<<4|M_IMP,
+    /*80*/ 0<<4|M_IMP, 3<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 5<<4|M_ZP, 3<<4|M_ZP, 4<<4|M_ZP, 0<<4|M_IMP, 30<<4|M_IMP, 0<<4|M_IMP, 7<<4|M_IMP, 0<<4|M_IMP, 5<<4|M_ABS, 3<<4|M_ABS, 4<<4|M_ABS, 0<<4|M_IMP,
+    /*90*/ 35<<4|M_REL, 3<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 5<<4|M_ZPX, 3<<4|M_ZPX, 4<<4|M_ZPY, 0<<4|M_IMP, 9<<4|M_IMP, 3<<4|M_ABSY, 11<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 3<<4|M_ABSX, 0<<4|M_IMP, 0<<4|M_IMP,
+    /*A0*/ 2<<4|M_IMM, 0<<4|M_INDX, 1<<4|M_IMM, 0<<4|M_IMP, 2<<4|M_ZP, 0<<4|M_ZP, 1<<4|M_ZP, 0<<4|M_IMP, 8<<4|M_IMP, 0<<4|M_IMM, 6<<4|M_IMP, 0<<4|M_IMP, 2<<4|M_ABS, 0<<4|M_ABS, 1<<4|M_ABS, 0<<4|M_IMP,
+    /*B0*/ 36<<4|M_REL, 0<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 2<<4|M_ZPX, 0<<4|M_ZPX, 1<<4|M_ZPY, 0<<4|M_IMP, 52<<4|M_IMP, 0<<4|M_ABSY, 10<<4|M_IMP, 0<<4|M_IMP, 2<<4|M_ABSX, 0<<4|M_ABSX, 1<<4|M_ABSY, 0<<4|M_IMP,
+    /*C0*/ 24<<4|M_IMM, 22<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 24<<4|M_ZP, 22<<4|M_ZP, 26<<4|M_ZP, 0<<4|M_IMP, 28<<4|M_IMP, 22<<4|M_IMM, 29<<4|M_IMP, 0<<4|M_IMP, 24<<4|M_ABS, 22<<4|M_ABS, 26<<4|M_ABS, 0<<4|M_IMP,
+    /*D0*/ 39<<4|M_REL, 22<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 22<<4|M_ZPX, 26<<4|M_ZPX, 0<<4|M_IMP, 50<<4|M_IMP, 22<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 22<<4|M_ABSX, 26<<4|M_ABSX, 0<<4|M_IMP,
+    /*E0*/ 23<<4|M_IMM, 17<<4|M_INDX, 0<<4|M_IMP, 0<<4|M_IMP, 23<<4|M_ZP, 17<<4|M_ZP, 25<<4|M_ZP, 0<<4|M_IMP, 27<<4|M_IMP, 17<<4|M_IMM, 48<<4|M_IMP, 0<<4|M_IMP, 23<<4|M_ABS, 17<<4|M_ABS, 25<<4|M_ABS, 0<<4|M_IMP,
+    /*F0*/ 37<<4|M_REL, 17<<4|M_INDY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 17<<4|M_ZPX, 25<<4|M_ZPX, 0<<4|M_IMP, 54<<4|M_IMP, 17<<4|M_ABSY, 0<<4|M_IMP, 0<<4|M_IMP, 0<<4|M_IMP, 17<<4|M_ABSX, 25<<4|M_ABSX, 0<<4|M_IMP
 };
 #endif
 
@@ -111,41 +111,41 @@ static const uint16_t OP[256] = {
 
 #ifndef HOST
 static const uint8_t CY[256] PROGMEM = {
-    /*00*/ 0x07,   0x06,   0x00,   0x00,   0x00,   0x03,   0x05,   0x00,   0x03,   0x02,   0x02,   0x00,   0x00,   0x04,   0x06,   0x00,   
-    /*10*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*20*/ 0x06,   0x06,   0x00,   0x00,   0x03,   0x03,   0x05,   0x00,   0x04,   0x02,   0x02,   0x00,   0x04,   0x04,   0x06,   0x00,   
-    /*30*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*40*/ 0x06,   0x06,   0x00,   0x00,   0x00,   0x03,   0x05,   0x00,   0x03,   0x02,   0x02,   0x00,   0x03,   0x04,   0x06,   0x00,   
-    /*50*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*60*/ 0x06,   0x06,   0x00,   0x00,   0x00,   0x03,   0x05,   0x00,   0x04,   0x02,   0x02,   0x00,   0x05,   0x04,   0x06,   0x00,   
-    /*70*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*80*/ 0x00,   0x06,   0x00,   0x00,   0x03,   0x03,   0x03,   0x00,   0x02,   0x00,   0x02,   0x00,   0x04,   0x04,   0x04,   0x00,   
-    /*90*/ 0x02,   0x06,   0x00,   0x00,   0x04,   0x04,   0x04,   0x00,   0x02,   0x05,   0x02,   0x00,   0x00,   0x05,   0x00,   0x00,   
-    /*A0*/ 0x02,   0x06,   0x02,   0x00,   0x03,   0x03,   0x03,   0x00,   0x02,   0x02,   0x02,   0x00,   0x04,   0x04,   0x04,   0x00,   
-    /*B0*/ 0x02,   0x05,   0x00,   0x00,   0x04,   0x04,   0x04,   0x00,   0x02,   0x04,   0x02,   0x00,   0x04,   0x04,   0x04,   0x00,   
-    /*C0*/ 0x02,   0x06,   0x00,   0x00,   0x03,   0x03,   0x05,   0x00,   0x02,   0x02,   0x02,   0x00,   0x04,   0x04,   0x06,   0x00,   
-    /*D0*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*E0*/ 0x02,   0x06,   0x00,   0x00,   0x03,   0x03,   0x05,   0x00,   0x02,   0x02,   0x02,   0x00,   0x04,   0x04,   0x06,   0x00,   
-    /*F0*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00
+    /*00*/ 0x07, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x03, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*10*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*20*/ 0x06, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x04, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*30*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*40*/ 0x06, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x03, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*50*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*60*/ 0x06, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x04, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*70*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*80*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02,
+    /*90*/ 0x02, 0x06, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02, 0x02, 0x05, 0x02, 0x02, 0x04, 0x05, 0x02, 0x02,
+    /*A0*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02,
+    /*B0*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02,
+    /*C0*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*D0*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*E0*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*F0*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02
 };
 #else
 static const uint8_t CY[256] = {
-    /*00*/ 0x07,   0x06,   0x00,   0x00,   0x00,   0x03,   0x05,   0x00,   0x03,   0x02,   0x02,   0x00,   0x00,   0x04,   0x06,   0x00,   
-    /*10*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*20*/ 0x06,   0x06,   0x00,   0x00,   0x03,   0x03,   0x05,   0x00,   0x04,   0x02,   0x02,   0x00,   0x04,   0x04,   0x06,   0x00,   
-    /*30*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*40*/ 0x06,   0x06,   0x00,   0x00,   0x00,   0x03,   0x05,   0x00,   0x03,   0x02,   0x02,   0x00,   0x03,   0x04,   0x06,   0x00,   
-    /*50*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*60*/ 0x06,   0x06,   0x00,   0x00,   0x00,   0x03,   0x05,   0x00,   0x04,   0x02,   0x02,   0x00,   0x05,   0x04,   0x06,   0x00,   
-    /*70*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*80*/ 0x00,   0x06,   0x00,   0x00,   0x03,   0x03,   0x03,   0x00,   0x02,   0x00,   0x02,   0x00,   0x04,   0x04,   0x04,   0x00,   
-    /*90*/ 0x02,   0x06,   0x00,   0x00,   0x04,   0x04,   0x04,   0x00,   0x02,   0x05,   0x02,   0x00,   0x00,   0x05,   0x00,   0x00,   
-    /*A0*/ 0x02,   0x06,   0x02,   0x00,   0x03,   0x03,   0x03,   0x00,   0x02,   0x02,   0x02,   0x00,   0x04,   0x04,   0x04,   0x00,   
-    /*B0*/ 0x02,   0x05,   0x00,   0x00,   0x04,   0x04,   0x04,   0x00,   0x02,   0x04,   0x02,   0x00,   0x04,   0x04,   0x04,   0x00,   
-    /*C0*/ 0x02,   0x06,   0x00,   0x00,   0x03,   0x03,   0x05,   0x00,   0x02,   0x02,   0x02,   0x00,   0x04,   0x04,   0x06,   0x00,   
-    /*D0*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00,   
-    /*E0*/ 0x02,   0x06,   0x00,   0x00,   0x03,   0x03,   0x05,   0x00,   0x02,   0x02,   0x02,   0x00,   0x04,   0x04,   0x06,   0x00,   
-    /*F0*/ 0x02,   0x05,   0x00,   0x00,   0x00,   0x04,   0x06,   0x00,   0x02,   0x04,   0x00,   0x00,   0x00,   0x04,   0x07,   0x00
+    /*00*/ 0x07, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x03, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*10*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*20*/ 0x06, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x04, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*30*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*40*/ 0x06, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x03, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*50*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*60*/ 0x06, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x04, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*70*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*80*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02,
+    /*90*/ 0x02, 0x06, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02, 0x02, 0x05, 0x02, 0x02, 0x04, 0x05, 0x02, 0x02,
+    /*A0*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x03, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02,
+    /*B0*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x04, 0x02,
+    /*C0*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*D0*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02,
+    /*E0*/ 0x02, 0x06, 0x02, 0x02, 0x03, 0x03, 0x05, 0x02, 0x02, 0x02, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02,
+    /*F0*/ 0x02, 0x05, 0x02, 0x02, 0x04, 0x04, 0x06, 0x02, 0x02, 0x04, 0x02, 0x02, 0x04, 0x04, 0x07, 0x02
 };
 #endif
 
@@ -251,6 +251,16 @@ static void adc(uint8_t operand) {
     uint16_t sum = (uint16_t)rA + operand + c;
     uint8_t masked = sum & 0xFF;
     uint8_t v = (uint8_t)((rA ^ masked) & (operand ^ masked) & 0x80);
+    if (rP & FL_D) {
+        if (v) rP |= FL_V; else rP &= ~FL_V;
+        upd_nz(masked);
+        uint16_t decimal = sum;
+        if (((rA & 0x0F) + (operand & 0x0F) + c) > 9) decimal += 0x06;
+        if (decimal > 0x99) decimal += 0x60;
+        if (decimal > 0xFF) rP |= FL_C; else rP &= ~FL_C;
+        rA = decimal & 0xFF;
+        return;
+    }
     if (sum > 0xFF) rP |= FL_C; else rP &= ~FL_C;
     if (v) rP |= FL_V; else rP &= ~FL_V;
     upd_nz(masked);
@@ -258,6 +268,28 @@ static void adc(uint8_t operand) {
 }
 static void sbc(uint8_t operand) {
     uint8_t c = F_C();
+    if (rP & FL_D) {
+        int borrow = 1 - c;
+        int binary_diff = (int)rA - operand - borrow;
+        uint8_t masked = (uint8_t)binary_diff & 0xFF;
+        uint8_t v = (uint8_t)((rA ^ masked) & (rA ^ operand) & 0x80);
+        if (v) rP |= FL_V; else rP &= ~FL_V;
+        upd_nz(masked);
+        int low = (rA & 0x0F) - (operand & 0x0F) - borrow;
+        int high = ((rA >> 4) & 0x0F) - ((operand >> 4) & 0x0F);
+        if (low < 0) {
+            low += 10;
+            high -= 1;
+        }
+        if (high < 0) {
+            high += 10;
+            rP &= ~FL_C;
+        } else {
+            rP |= FL_C;
+        }
+        rA = (uint8_t)(((high << 4) | low) & 0xFF);
+        return;
+    }
     uint8_t complement = operand ^ 0xFF;
     uint16_t sum = (uint16_t)rA + complement + c;
     uint8_t masked = sum & 0xFF;
@@ -353,22 +385,22 @@ static void op0_op(uint8_t id) {
     case 10: rX = rSP; upd_nz(rX); break;            /* TSX */
     case 11: rSP = rX; break;                        /* TXS */
     case 12: push(rA); break;                        /* PHA */
-    case 13: push(rP | 0x30); break;                 /* PHP */
+    case 13: push((uint8_t)((rP | 0x20) | FL_B)); break; /* PHP */
     case 14: rA = pull(); upd_nz(rA); break;         /* PLA */
-    case 15: rP = pull(); break;                     /* PLP */
+    case 15: rP = (uint8_t)(pull() | 0x20); break;     /* PLP */
     case 27: rX = (uint8_t)(rX + 1); upd_nz(rX); break; /* INX */
     case 28: rY = (uint8_t)(rY + 1); upd_nz(rY); break; /* INY */
     case 29: rX = (uint8_t)(rX - 1); upd_nz(rX); break; /* DEX */
     case 30: rY = (uint8_t)(rY - 1); upd_nz(rY); break; /* DEY */
     case 45: rPC = (uint16_t)((pull16() + 1) & 0xFFFF); break; /* RTS */
     case 46:                                           /* BRK */
+        rPC = (uint16_t)(rPC + 1);
         push16(rPC);
-        push((uint8_t)(rP | 0x30));
+        push((uint8_t)((rP | 0x20) | FL_B));
         rP |= FL_I;
         rPC = (uint16_t)(bus_read(0xFFFE) | (bus_read(0xFFFF) << 8));
-        halted = 1;
         break;
-    case 47: rP = pull(); rPC = pull16(); break;     /* RTI */
+    case 47: rP = (uint8_t)(pull() | 0x20); rPC = pull16(); break; /* RTI */
     case 49: rP &= ~FL_C; break;                     /* CLC */
     case 50: rP &= ~FL_D; break;                     /* CLD */
     case 51: rP &= ~FL_I; break;                     /* CLI */
@@ -440,7 +472,7 @@ static uint8_t exec_step(uint8_t code) {
 /* ---- interrupt servicing (parity with cpu.sage) ---- */
 static void serve_interrupt(uint16_t vector) {
     push16(rPC);
-    push((uint8_t)(rP | 0x30));
+    push((uint8_t)((rP | 0x20) & ~FL_B));
     rP |= FL_I;
     rPC = (uint16_t)(bus_read(vector) | (bus_read((uint16_t)(vector + 1)) << 8));
     cycount += 7;
@@ -449,9 +481,7 @@ static void serve_interrupt(uint16_t vector) {
 void cpu_reset(void) {
     rSP = 0xFD;
     rPC = (uint16_t)(bus_read(0xFFFC) | (bus_read(0xFFFD) << 8));
-    rP = 0x00;
-    rP |= FL_B;
-    rP |= FL_I;
+    rP = FL_I;
     rA = 0; rX = 0; rY = 0;
     halted = 0;
     cycount = 0;

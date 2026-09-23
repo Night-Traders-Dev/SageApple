@@ -1278,9 +1278,9 @@ class Basic:
             let addr = int(ev[0]) & 0xFFFF
             let val = int(ev2[0]) & 0xFF
             if addr >= 0x2000 and addr <= 0x2007:
-                return self._err_res()  # device register range
+                return self._qty_err()
             if addr >= 0x3000 and addr <= 0x3007:
-                return self._err_res()  # legacy console
+                return self._qty_err()
             self.machine.bus.write8(addr, val)
         return ["next", self._after(ev2[2])]
 
@@ -1294,9 +1294,9 @@ class Basic:
         if addr == -151 or addr == 65449:
             return ["mon"]
         if addr >= 0x2000 and addr <= 0x2007:
-            return self._err_res()  # device register range
+            return self._qty_err()
         if addr >= 0x3000 and addr <= 0x3007:
-            return self._err_res()  # legacy console
+            return self._qty_err()
         if self.machine != nil:
             self.machine.cpu.regs.set_pc(addr & 0xFFFF)
             var n = 0
