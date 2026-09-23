@@ -42,6 +42,20 @@ avr/
 
 Everything else reads `0xFF` and ignores writes.
 
+## Reduced Apple II compatibility profile
+
+The separate `apple2` target builds a staged compatibility profile without replacing the legacy monitor image:
+
+```sh
+make apple2
+make apple2-host-test
+make apple2-flash DEVICE=/dev/ttyACM0 BAUD=115200 PROTO=arduino
+```
+
+The host profile uses a 48 KiB RAM view, a strict 12 KiB ROM at `$D000-$FFFF`, Apple soft switches at `$C000`, `$C010`, `$C030`, and `$C050-$C057`, and a serial bridge at `$C080/$C081`. Text and hi-res writes are recorded as ordered events instead of allocating a framebuffer. `sageapple/apple2_rom.sage` builds the redistributable replacement ROM; Apple ROM binaries are not included.
+
+The Uno profile uses 1 KiB of guest RAM, a 12 KiB replacement ROM, the same soft switches, and the serial bridge. It does not yet provide full 48 KiB RAM, video RAM, Disk II, slot hardware, or cycle-level NTSC timing.
+
 ### SRAM budget juggling
 
 The host model gives the machine 2 KB RAM; the 328P has 2 KB SRAM total.

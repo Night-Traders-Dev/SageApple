@@ -86,5 +86,5 @@ trappable with `ONERR GOTO` (the error code is available for
 
 * `tests/basic/test_basic.sage` — 49 checks (Applesoft expressions,
   control flow, errors, string functions)
-* `tests/machine/test_apple2.sage` — 30 checks (DOS verbs, file types,
+* `tests/machine/test_apple2.sage` — 39 checks (DOS verbs, file types,
   monitor shell, `CALL -151`, POKE/PEEK interop)

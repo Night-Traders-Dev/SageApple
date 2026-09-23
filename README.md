@@ -43,7 +43,7 @@ hardware:
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 | M14 | Apple II software stack: DOS 3.3 command processor, full Applesoft BASIC, host Apple II monitor (`*` dumps/disassembly/go), unified `]` BASIC / `*` monitor shell, SAGEFS v2 with DOS file types |
 
-Host suites: **16 modules, 318 checks passing** — plus the AVR host
+Host suites: **18 suites, 356 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture
@@ -111,6 +111,7 @@ make                                    # sageapple.hex (the 6502 emulator)
 make flash DEVICE=/dev/ttyUSB0 BAUD=115200 PROTO=arduino
 make host-test                          # host equivalence oracle
 screen /dev/ttyUSB0 9600               # talk to the monitor on the UNO
+./sagemake apple2                       # reduced Apple II compatibility profile
 ```
 
 The board boots straight into the monitor over the physical UART:
@@ -150,7 +151,7 @@ over the physical UART (9,600 baud); `C-a d`/`C-a k` returns to the
 Run any module standalone, or all 15:
 
 ```sh
-for t in tests/*/*.sage; do sage "$t"; done   # 285 checks, all OK
+for t in tests/*/*.sage; do sage "$t"; done   # 356 checks, all OK
 ```
 
 ## Repository layout

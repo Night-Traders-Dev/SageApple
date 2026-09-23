@@ -4,8 +4,9 @@ Two modules define how the 6502 sees its memory:
 
 ```
 bus/
-├── bus.sage        flat 64 KB byte-array bus (generic, tests)
-└── applebus.sage   the real SageApple memory map + devices
+├── bus.sage          flat 64 KB byte-array bus (generic, tests)
+├── applebus.sage     the real SageApple memory map + devices
+└── apple2bus.sage    isolated Apple II compatibility profile
 ```
 
 ## `bus.sage` — the flat bus
@@ -60,6 +61,12 @@ target has only 2 KB of physical SRAM: the emulator state (registers, the C
 stack, trace buffers) must share it with the 6502's own RAM, so `avr/bus.c`
 maps `$0000-$03FF` (1 KB) — the monitor, BASIC workspace and current
 programs fit comfortably. See [docs/avr.md](avr.md).
+
+## `Apple2Bus` — staged Apple II profile
+
+`apple2bus.sage` is isolated from the legacy `AppleBus`. It provides a 48 KiB host RAM view at `$0000-$BFFF`, a strict 12 KiB read-only ROM at `$D000-$FFFF`, Apple keyboard/speaker/video soft switches, and a `$C080/$C081` serial bridge. Text and hi-res writes are recorded as ordered events rather than stored in a framebuffer. `sageapple/apple2_machine.sage` provides the CPU wrapper and `sageapple/apple2_rom.sage` builds the replacement ROM.
+
+The reduced AVR profile uses 1 KiB of guest RAM and ignores video-memory payloads while retaining the soft switches and serial bridge. It is a compatibility slice, not a complete Apple II hardware implementation.
 
 ## Testing
 

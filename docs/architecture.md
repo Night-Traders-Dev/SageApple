@@ -10,13 +10,16 @@ edges:
 - a **SageLang-to-6502 compiler backend** (`compiler/`),
 - a **SageLang-implemented computer system** layered on top of that CPU
   (bus, devices, BASIC, monitor, OS, filesystem),
-- a **hardware port** of the whole thing to an **ATmega328P (Arduino UNO
-  R3-compatible)** board, where the 6502 core is a faithful C port
-  (`avr/sage6502.c`) run by a thin AVR runtime.
+- a **hardware port** of the 6502 core to an **ATmega328P (Arduino UNO
+  R3-compatible)** board, where the core is a C port (`avr/sage6502.c`) run
+  by a thin C/assembly runtime;
+- a separate staged **Apple II compatibility profile** with a SageLang
+  `Apple2Bus`, replacement ROM at `$D000`, soft switches, serial bridge,
+  and text/hi-res write events.
 
-The result is a system that can be booted either by the host `sage`
-interpreter (fully emulated, used by the test suites) or on the real chip
-(serial terminal, monitor, BASIC — proven working on silicon).
+The legacy profile boots on the host and the real chip. The reduced Apple II
+profile is intentionally separate and does not yet reproduce the complete
+Apple II hardware or software stack on the Uno.
 
 ## System layers
 
@@ -35,8 +38,8 @@ interpreter (fully emulated, used by the test suites) or on the real chip
  |  compiler/                |  asm6502 two-pass assembler |
  |                           |  + BASIC -> 6502 backend    |
  +---------------------------+-----------------------------+
- |  bus/   devices/          |  AppleBus memory map, UART, |
- |                           |  SPI, OLED, NOR flash, spkr |
+  |  bus/   devices/          |  AppleBus/Apple2Bus, UART, |
+  |                           |  SPI, OLED, NOR flash, spkr |
  +---------------------------+-----------------------------+
  |  sage6502/                |  table-driven NMOS 6502 core|
  +---------------------------+-----------------------------+
@@ -62,7 +65,7 @@ AVR chip.
 | [docs/os.md](os.md) | OS console, monitor, filesystem, graphics, boot |
 | [docs/avr.md](avr.md) | ATmega328P port, C runtime, flashing |
 | [docs/tools.md](tools.md) | host-side tools (hex, ROM, table generation) |
-| [docs/tests.md](tests.md) | the 15 validation suites |
+| [docs/tests.md](tests.md) | the 18 validation suites |
 
 ## Key design decisions
 

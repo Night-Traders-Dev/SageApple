@@ -70,3 +70,5 @@ void bus_write(uint16_t addr, uint8_t v) {
 
 void bus_poke(uint16_t addr, uint8_t v) { bus_write(addr, v); }
 
+void bus_reset(void) {}
+

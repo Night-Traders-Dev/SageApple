@@ -14,6 +14,7 @@ Commands:
     test       Run all 16 host test suites (318 checks)
     run        Boot the OS to an interactive shell on the host (persistent flash disk)
     avr        Build the ATmega328P firmware only (make -C avr)
+    apple2     Build the reduced Apple II-compatible AVR profile
     host-test  Host equivalence oracle (C port vs Sage reference)
     flash      Flash the board via avrdude
     fuse       Set ATmega328P fuses (16 MHz external crystal)
@@ -342,6 +343,22 @@ def cmd_avr(args: list[str]) -> None:
     step_ok("firmware built — see avr/sageapple.hex")
 
 
+def cmd_apple2(args: list[str]) -> None:
+    banner(f"apple2 — {PROJECT_NAME}")
+    check_dependencies()
+    if not has_avr_toolchain():
+        step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
+    section("Apple II profile")
+    step("make -C avr apple2")
+    run(["make", "-C", "avr", "apple2"], cwd=ROOT)
+    ok()
+    if "--flash" in args:
+        step("make -C avr apple2-flash")
+        run(["make", "-C", "avr", "apple2-flash"] + _flash_args(args), cwd=ROOT)
+        ok()
+    step_ok("reduced Apple II firmware built")
+
+
 def cmd_host_test(args: list[str]) -> None:
     banner(f"host-test — {PROJECT_NAME}")
     if not has_host_toolchain():
@@ -470,6 +487,7 @@ def main() -> None:
         "test": cmd_test,
         "run": cmd_run,
         "avr": cmd_avr,
+        "apple2": cmd_apple2,
         "host-test": cmd_host_test,
         "flash": cmd_flash,
         "fuse": cmd_fuse,

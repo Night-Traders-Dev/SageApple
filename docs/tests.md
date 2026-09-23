@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **16 SageLang suites: 318 checks**, each
+SageApple is validated by **18 SageLang suites: 356 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -21,7 +21,8 @@ sage tests/boot/test_monitor.sage
 | `tests/compiler/test_backend.sage` | 22 | compiled BASIC output equality (arithmetic, strings, GOTO/IF, comparisons, div-0) |
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
 | `tests/boot/test_uart.sage` | 8 | UART device RX/TX/status + echo-terminal |
-| `tests/boot/test_monitor.sage` | 10 | monitor session (help/poke/peek/dump/regs/run/reset/unknown) |
+| `tests/boot/test_apple2_boot.sage` | 9 | replacement ROM boot, vectors, serial signature, text events, input echo |
+| `tests/bus/test_apple2_map.sage` | 29 | Apple II RAM/ROM map, soft switches, serial bridge, text/hi-res events |
 | `tests/basic/test_basic.sage` | 49 | Applesoft arithmetic, strings, functions, control flow, errors |
 | `tests/display/test_spi.sage` | 9 | SPI framing, CS, loopback, counters |
 | `tests/display/test_display.sage` | 29 | OLED decode, windows, pixels/lines/text, 6502-driven |
@@ -30,7 +31,7 @@ sage tests/boot/test_monitor.sage
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
 | `tests/machine/test_apple2.sage` | 39 | DOS 3.3 verbs, file types, monitor shell, CALL -151, buffers, EXEC, device errors |
-| **Total** | **318** | |
+| **Total** | **356** | |
 
 ## How suites assert
 

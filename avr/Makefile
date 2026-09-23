@@ -23,6 +23,15 @@ LDFLAGS  = -mmcu=$(MC) -T avr.ld
 
 OBJS     = main.o start.o sage6502.o bus.o rom_avr.o
 ELF      = sageapple.elf
+SAGE     = sage-c
+HOST_CC  = gcc
+HOST_CFLAGS = -O2 -DHOST -Wall -Wextra -std=gnu11
+APPLE2_OBJS = main.o start.o sage6502.o bus_apple2.o rom_apple2.o
+APPLE2_ELF = apple2.elf
+APPLE2_HEX = apple2.hex
+APPLE2_HOST = apple2_host_test
+
+.PHONY: apple2 apple2-gen apple2-host apple2-host-test apple2-flash
 
 all: $(ELF) sageapple.hex
 	$(SIZE) $(ELF)
@@ -39,6 +48,29 @@ $(ELF): $(OBJS) avr.ld
 sageapple.hex: $(ELF)
 	$(OBJCOPY) -O ihex -R .eeprom $< $@
 	$(OBJDUMP) -d $< > sageapple.lss
+
+$(APPLE2_ELF): apple2-gen $(APPLE2_OBJS) avr.ld
+	$(CC) $(LDFLAGS) -o $@ $(APPLE2_OBJS)
+
+$(APPLE2_HEX): $(APPLE2_ELF)
+	$(OBJCOPY) -O ihex -R .eeprom $< $@
+	$(OBJDUMP) -d $< > apple2.lss
+
+apple2-gen:
+	$(SAGE) ../tools/apple2_rom_gen.sage --out=rom_apple2.c
+
+apple2: apple2-gen $(APPLE2_HEX)
+	$(SIZE) $(APPLE2_ELF)
+
+apple2-host: apple2-gen
+	$(HOST_CC) $(HOST_CFLAGS) -o $(APPLE2_HOST) sage6502.c bus_apple2.c rom_apple2.c apple2_host_main.c
+
+apple2-host-test: apple2-host
+	./$(APPLE2_HOST)
+
+apple2-flash: apple2
+	$(AVRDUDE) -p $(MC) -c $(PROTO) -P $(DEVICE) -b $(BAUD) \
+	  -U flash:w:$(APPLE2_HEX):i
 
 build-sage-boot:
 	sage ../tools/avr_boot.sage
@@ -62,4 +94,4 @@ program-fuse:
 	  -U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m
 
 clean:
-	rm -f *.o $(ELF) *.hex *.lss
+	rm -f *.o $(ELF) *.hex *.lss $(APPLE2_ELF) $(APPLE2_HOST)

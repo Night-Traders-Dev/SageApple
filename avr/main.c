@@ -51,12 +51,14 @@ static void uart_init(void) {
 
 void cpu_reset(void);
 void cpu_step(void);
+void bus_reset(void);
 
 int main(void) {
     cli();
     uart_init();
     heartbeat_init();
     sei();
+    bus_reset();
     cpu_reset();
     for (;;) {
         cpu_step();

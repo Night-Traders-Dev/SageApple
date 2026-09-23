@@ -196,6 +196,6 @@ BASIC workspace persistence. A full directory fails cleanly (-1).
 | `tests/boot/test_uart.sage` | 8 | echo / terminal |
 | `tests/boot/test_monitor.sage` | 10 | AVR monitor session |
 | `tests/machine/test_os.sage` | 24 | the definition of done |
-| `tests/machine/test_apple2.sage` | 33 | DOS verbs, file types, monitor shell, CALL -151, POKE/PEEK |
+| `tests/machine/test_apple2.sage` | 39 | DOS verbs, file types, monitor shell, CALL -151, POKE/PEEK, buffers, EXEC, device errors |
 | `tests/machine/test_speaker.sage` | 12 | speaker from BASIC + 6502 |
 | `tests/storage/*` | 45 | flash + filesystem |

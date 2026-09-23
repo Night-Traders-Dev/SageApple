@@ -8,4 +8,5 @@
 *.lss
 build/
 avr/host_test
+avr/apple2_host_test
 avr/host_out.txt
