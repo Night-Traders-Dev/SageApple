@@ -2,11 +2,17 @@
 
 ## [Unreleased]
 
+### Host Apple II HGR page projection
+- `sageapple/apple2_hires.sage` — read-only 280x192 projection of Apple II HGR pages 1 and 2 at `$2000` and `$4000`, with live interleaved reads, low-seven-bit pixels, and no framebuffer or bus copy
+- `sageapple/apple2_machine.sage` — shared HGR view plus `hires_pixel()` and newline-joined `render_hires()` forwarding
+- `tests/display/test_apple2_hires.sage` — 28 checks for page/address validation, representative rows, holes, pixel order, page isolation, live overwrites, rendering dimensions, machine forwarding, and read-only bus behavior
+- Host suite total after this slice: **20 suites, 516 checks passing**; the projection is host-only and does not alter AVR/C, Apple2Bus, or ROM generation
+
 ### Host Apple II text-page projection
 - `sageapple/apple2_text.sage` — read-only 40x24 projection of Apple II text pages 1 and 2, with inverse/flash decoding, fixed or trimmed lines, and pure ANSI output
 - `sageapple/apple2_machine.sage` — live host text view and newline-joined `render_text()`
 - `tests/display/test_apple2_text.sage` — 27 checks for mapping, validation, modes, page isolation, holes, trimming, live reads, and ANSI markers; `tests/boot/test_apple2_boot.sage` adds 2 rendering checks
-- Host suite total after this slice: **19 suites, 488 checks passing**; the renderer is host-only and does not alter AVR/C ROM generation
+- The preceding text slice brought the host total to 19 suites and 488 checks; both projections remain host-only and do not alter AVR/C ROM generation
 
 ### Apple II keyboard latch and host/AVR input path
 - `bus/apple2bus.sage` — encoded string keyboard input, raw numeric/array keycodes, FIFO ordering, stable `$C000`, and `$C010` read/write acknowledgement

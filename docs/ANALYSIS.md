@@ -20,6 +20,7 @@ Apple II-inspired retrocomputer emulator in **SageLang**, targeting ATmega328P/A
 | **Flags** | `sage6502/flags.sage` | ~97 | P register (NV-BDIZC) |
 | **Bus** | `bus/applebus.sage` | ~111 | Memory map: RAM/ROM/devices |
 | **Apple II text** | `sageapple/apple2_text.sage` | ~81 | Read-only 40x24 page 1/2 projection |
+| **Apple II HGR** | `sageapple/apple2_hires.sage` | ~56 | Read-only 280x192 page 1/2 projection |
 | **Devices** | `devices/*.sage` | ~300 | UART, SPI, OLED, flash, speaker |
 | **BASIC** | `basic/basic.sage` | ~2180 | Full Applesoft |
 | **DOS 3.3** | `sageapple/dos.sage` | ~748 | Commands, file types, errors |
@@ -62,7 +63,7 @@ Apple II-inspired retrocomputer emulator in **SageLang**, targeting ATmega328P/A
 
 ---
 
-## Test Coverage: 19 Suites, 488 Checks (All Passing)
+## Test Coverage: 20 Suites, 516 Checks (All Passing)
 
 | Suite area | Checks |
 |-------|--------|
@@ -72,7 +73,7 @@ Apple II-inspired retrocomputer emulator in **SageLang**, targeting ATmega328P/A
 | Apple II bus | 132 |
 | Machine (OS/Apple2/Speaker) | 75 |
 | Compiler (asm6502/backend) | 33 |
-| Display (SPI/OLED/text) | 65 |
+| Display (SPI/OLED/text/HGR) | 93 |
 | Storage (Flash/FS) | 50 |
 
 **AVR host-equivalence verified**
@@ -114,7 +115,7 @@ All install via `catalog.install_basic_apps()`, run with `RUN <NAME>`
 
 ## Current Status
 
-✅ **All 19 suites, 488 checks passing**
+✅ **All 20 suites, 516 checks passing**
 ✅ **AVR host-equivalence verified**  
 ✅ **12 classic apps functional**  
 ✅ **README updated with single images**  
