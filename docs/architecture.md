@@ -14,8 +14,9 @@ edges:
   R3-compatible)** board, where the core is a C port (`avr/sage6502.c`) run
   by a thin C/assembly runtime;
 - a separate staged **Apple II compatibility profile** with a SageLang
-  `Apple2Bus`, replacement ROM at `$D000`, soft switches, serial bridge,
-  and text/hi-res write events.
+  `Apple2Bus`, replacement ROM at `$D000`, language-card banking, slot and
+  expansion ROM windows, soft switches, serial bridge, and text/hi-res write
+  events.
 
 The legacy profile boots on the host and the real chip. The reduced Apple II
 profile is intentionally separate and does not yet reproduce the complete

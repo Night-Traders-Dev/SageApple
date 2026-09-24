@@ -64,9 +64,9 @@ programs fit comfortably. See [docs/avr.md](avr.md).
 
 ## `Apple2Bus` — staged Apple II profile
 
-`apple2bus.sage` is isolated from the legacy `AppleBus`. It provides a 48 KiB host RAM view at `$0000-$BFFF`, a strict 12 KiB read-only ROM at `$D000-$FFFF`, Apple keyboard/speaker/video soft switches, and a `$C080/$C081` serial bridge. Text and hi-res writes are recorded as ordered events rather than stored in a framebuffer. `sageapple/apple2_machine.sage` provides the CPU wrapper and `sageapple/apple2_rom.sage` builds the replacement ROM.
+`apple2bus.sage` is isolated from the legacy `AppleBus`. It provides a 48 KiB host RAM view at `$0000-$BFFF`, a strict 12 KiB read-only ROM at `$D000-$FFFF`, Apple keyboard/speaker/video soft switches, and a `$C080/$C081` serial bridge. Text and hi-res writes are recorded as ordered events rather than stored in a framebuffer. The language-card model uses `$C300-$C30B` to select its two 4 KiB `$D000` banks and shared `$E000-$F7FF` RAM; ROM mode uses the loaded main ROM as a deterministic fallback. Strict 256-byte slot ROMs for slots 1-7 map through `$C100-$C7FF`, and a strict 2 KiB expansion ROM maps `$C800-$CFFF`. `sageapple/apple2_machine.sage` provides the CPU wrapper and `sageapple/apple2_rom.sage` builds the replacement ROM.
 
-The reduced AVR profile uses 1 KiB of guest RAM and ignores video-memory payloads while retaining the soft switches and serial bridge. It is a compatibility slice, not a complete Apple II hardware implementation.
+The reduced AVR profile uses 1 KiB of guest RAM, a 512-byte partial language-card backing store, the banking soft switches, and ignores video-memory payloads while retaining the serial bridge. It is a compatibility slice, not a complete Apple II hardware implementation.
 
 ## Testing
 

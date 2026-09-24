@@ -26,8 +26,10 @@ avr/
 
 | resource | used |
 |---|---|
-| flash | ~12.3 KB of 32 KB (includes 8 KB monitor ROM) |
-| SRAM | 1,036 B of 2,048 B (1 KB 6502 RAM + emulator state) |
+| flash | ~12.3 KB of 32 KB (legacy: includes 8 KB monitor ROM) |
+| Apple II profile flash | 17,050 B of 32,768 B |
+| SRAM | 1,036 B of 2,048 B (legacy: 1 KB 6502 RAM + emulator state) |
+| Apple II profile SRAM | 1,581 B of 2,048 B (1 KB guest RAM + 512 B partial language-card RAM + state) |
 | UART | USART0, 9600 8N1, 16 MHz |
 | clock | 16 MHz (external crystal, CKDIV off: lfuse `0xFF`) |
 
@@ -52,9 +54,9 @@ make apple2-host-test
 make apple2-flash DEVICE=/dev/ttyACM0 BAUD=115200 PROTO=arduino
 ```
 
-The host profile uses a 48 KiB RAM view, a strict 12 KiB ROM at `$D000-$FFFF`, Apple soft switches at `$C000`, `$C010`, `$C030`, and `$C050-$C057`, and a serial bridge at `$C080/$C081`. Text and hi-res writes are recorded as ordered events instead of allocating a framebuffer. `sageapple/apple2_rom.sage` builds the redistributable replacement ROM; Apple ROM binaries are not included.
+The host profile uses a 48 KiB RAM view, a strict 12 KiB ROM at `$D000-$FFFF`, Apple soft switches at `$C000`, `$C010`, `$C030`, `$C050-$C057`, and `$C300-$C30B`, plus a serial bridge at `$C080/$C081`. The language-card model provides two 4 KiB `$D000` banks and shared `$E000-$F7FF` RAM; the host bus also provides strict 256-byte slot ROMs and a 2 KiB expansion ROM. Text and hi-res writes are recorded as ordered events instead of allocating a framebuffer. `sageapple/apple2_rom.sage` builds the redistributable replacement ROM; Apple ROM binaries are not included.
 
-The Uno profile uses 1 KiB of guest RAM, a 12 KiB replacement ROM, the same soft switches, and the serial bridge. It does not yet provide full 48 KiB RAM, video RAM, Disk II, slot hardware, or cycle-level NTSC timing.
+The Uno profile uses 1 KiB of guest RAM, a 12 KiB replacement ROM, the same soft switches, and the serial bridge. Its language-card implementation is intentionally reduced to 512 bytes of backing storage covering 128 bytes per `$D000` bank and `$E000-$E1FF`; it does not provide full 48 KiB RAM, video RAM, Disk II, complete slot hardware, or cycle-level NTSC timing.
 
 ### SRAM budget juggling
 

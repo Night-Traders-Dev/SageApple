@@ -9,6 +9,7 @@ extern const uint8_t APPLE2ROM[12288];
 #endif
 
 static uint8_t ram[1024];
+static uint8_t language_card_ram[512];
 static uint8_t keyboard_latch;
 static uint8_t keyboard_strobe;
 static uint8_t speaker_on;
@@ -17,6 +18,14 @@ static uint8_t video_values[8];
 static uint16_t video_event_count;
 static uint16_t video_last_address;
 static uint8_t video_last_value;
+static uint8_t language_card_bank;
+static uint8_t language_card_read_ram;
+static uint8_t language_card_write_ram;
+static uint8_t language_card_prewrite;
+
+#define LANGUAGE_CARD_BANK_SIZE 0x80
+#define LANGUAGE_CARD_BANK2_BASE 0x80
+#define LANGUAGE_CARD_SHARED_BASE 0x100
 
 #ifndef HOST
 static uint8_t uart_rx_ready(void) {
@@ -75,6 +84,46 @@ static uint8_t read_rom(uint16_t offset) {
 #endif
 }
 
+static uint16_t language_card_offset(uint16_t address) {
+    if (address >= 0xD000 && address < 0xD000 + LANGUAGE_CARD_BANK_SIZE) {
+        return language_card_bank == 1 ? 0 : LANGUAGE_CARD_BANK2_BASE;
+    }
+    if (address >= 0xE000 && address < 0xE200) {
+        return LANGUAGE_CARD_SHARED_BASE + (uint16_t)(address - 0xE000);
+    }
+    return 0xFFFF;
+}
+
+static void language_card_switch(uint16_t address, uint8_t writing) {
+    uint8_t mode = (uint8_t)(address & 0x03);
+    language_card_bank = (address & 0x08) == 0 ? 1 : 2;
+    if (writing) {
+        language_card_prewrite = 0;
+        language_card_write_ram = 0;
+    } else if ((address & 0x01) == 0) {
+        language_card_prewrite = 0;
+        language_card_write_ram = mode == 1 || mode == 2;
+    } else if (language_card_prewrite == 0) {
+        language_card_prewrite = 1;
+        language_card_write_ram = 0;
+    } else {
+        language_card_write_ram = mode == 1 || mode == 2;
+    }
+    language_card_read_ram = mode == 0 || mode == 1;
+}
+
+static uint8_t language_card_read(uint16_t address) {
+    uint16_t offset = language_card_offset(address);
+    return offset == 0xFFFF ? 0 : language_card_ram[offset];
+}
+
+static void language_card_write(uint16_t address, uint8_t value) {
+    uint16_t offset = language_card_offset(address);
+    if (offset != 0xFFFF) {
+        language_card_ram[offset] = value;
+    }
+}
+
 void bus_reset(void) {
     uint8_t i;
     keyboard_latch = 0;
@@ -87,6 +136,10 @@ void bus_reset(void) {
     video_event_count = 0;
     video_last_address = 0;
     video_last_value = 0;
+    language_card_bank = 2;
+    language_card_read_ram = 0;
+    language_card_write_ram = 1;
+    language_card_prewrite = 0;
 }
 
 uint8_t bus_read(uint16_t address) {
@@ -94,6 +147,12 @@ uint8_t bus_read(uint16_t address) {
         return ram[address];
     }
     if (address >= 0xD000) {
+        if (address >= 0xF800) {
+            return read_rom((uint16_t)(address - 0xD000));
+        }
+        if (language_card_read_ram) {
+            return language_card_read(address);
+        }
         return read_rom((uint16_t)(address - 0xD000));
     }
     if (address == 0xC000) {
@@ -118,6 +177,11 @@ uint8_t bus_read(uint16_t address) {
         }
         return 0x00;
     }
+    if ((address >= 0xC300 && address <= 0xC303) ||
+        (address >= 0xC308 && address <= 0xC30B)) {
+        language_card_switch(address, 0);
+        return 0x00;
+    }
     return 0x00;
 }
 
@@ -127,6 +191,9 @@ void bus_write(uint16_t address, uint8_t value) {
         return;
     }
     if (address >= 0xD000) {
+        if (address < 0xF800 && language_card_write_ram) {
+            language_card_write(address, value);
+        }
         return;
     }
     if (is_video_write(address)) {
@@ -149,6 +216,11 @@ void bus_write(uint16_t address, uint8_t value) {
     }
     if (address == 0xC080) {
         uart_tx(value);
+        return;
+    }
+    if ((address >= 0xC300 && address <= 0xC303) ||
+        (address >= 0xC308 && address <= 0xC30B)) {
+        language_card_switch(address, 1);
     }
 }
 

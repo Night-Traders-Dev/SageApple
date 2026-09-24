@@ -7,6 +7,8 @@ void cpu_step(void);
 uint8_t cpu_halted(void);
 uint16_t cpu_pc(void);
 void bus_reset(void);
+uint8_t bus_read(uint16_t address);
+void bus_write(uint16_t address, uint8_t value);
 
 #define HOST_RX_CAPACITY 64
 #define HOST_TX_CAPACITY 256
@@ -61,6 +63,44 @@ static int check(int condition, const char *name) {
     return 1;
 }
 
+static int run_banking_checks(void) {
+    uint8_t rom_d000;
+    int failures = 0;
+    bus_reset();
+    rom_d000 = bus_read(0xD000);
+    bus_write(0xD000, 0x3C);
+    failures += check(bus_read(0xD000) == rom_d000,
+                      "language card starts in ROM read mode");
+    bus_read(0xC300);
+    bus_write(0xD000, 0xA1);
+    failures += check(bus_read(0xD000) == 0x00,
+                      "C300 read RAM mode rejects writes");
+    bus_read(0xC302);
+    failures += check(bus_read(0xD000) == rom_d000,
+                      "C302 keeps ROM reads visible");
+    bus_write(0xD000, 0xB2);
+    bus_read(0xC300);
+    failures += check(bus_read(0xD000) == 0xB2,
+                      "C300 exposes prewritten bank 1 RAM");
+    bus_read(0xC303);
+    bus_write(0xD000, 0x55);
+    failures += check(bus_read(0xD000) == rom_d000,
+                      "C303 keeps RAM write-protected");
+    bus_read(0xC308);
+    failures += check(bus_read(0xD000) == 0x3C,
+                      "C308 selects the second bank");
+    bus_read(0xC300);
+    failures += check(bus_read(0xD000) == 0xB2,
+                      "language card banks remain independent");
+    bus_read(0xC301);
+    bus_read(0xC301);
+    bus_write(0xE000, 0xD4);
+    bus_read(0xC300);
+    failures += check(bus_read(0xE000) == 0xD4,
+                      "shared language-card RAM is writable");
+    return failures;
+}
+
 int main(void) {
     static const uint8_t signature[] = {
         0x41, 0x32, 0x0D, 0x0A, 0x48, 0x49, 0x0D, 0x0A
@@ -81,6 +121,7 @@ int main(void) {
     failures += check(tx_length == sizeof(signature) + 1 &&
                       tx_bytes[sizeof(signature)] == 'X',
                       "serial input is echoed");
+    failures += run_banking_checks();
 
     if (failures != 0) {
         printf("APPLE2 HOST TEST FAILED\n");

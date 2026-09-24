@@ -1,6 +1,12 @@
 import devices.uart
 
 ## The Apple II serial bridge is UART TX on $C080 and UART RX on $C081.
+##
+## The language-card model has 16 KiB of physical RAM: two 4 KiB $D000
+## banks and a shared 8 KiB region at $E000-$F7FF. This byte-bus model
+## tracks prewrite across explicit odd reads; it cannot expose a 6502 read
+## phase hidden inside write8. ROM mode uses the flat main ROM as a
+## deterministic fallback rather than modeling language-card ROM banking.
 class Apple2Bus:
     proc init(self):
         self.ram = []
@@ -13,6 +19,28 @@ class Apple2Bus:
         while i < 0x3000:
             push(self.rom, 0x00)
             i = i + 1
+        self.language_card_ram = []
+        var lc_index = 0
+        while lc_index < 0x4000:
+            push(self.language_card_ram, 0x00)
+            lc_index = lc_index + 1
+        self.language_card_flat_rom_fallback = true
+        self._reset_language_card_state()
+        self.slot_roms = []
+        var slot = 0
+        while slot < 8:
+            let slot_rom = []
+            var slot_index = 0
+            while slot_index < 0x100:
+                push(slot_rom, 0x00)
+                slot_index = slot_index + 1
+            push(self.slot_roms, slot_rom)
+            slot = slot + 1
+        self.expansion_rom = []
+        var expansion_index = 0
+        while expansion_index < 0x800:
+            push(self.expansion_rom, 0x00)
+            expansion_index = expansion_index + 1
         self.uart = uart.UART()
         self.events = []
         self.video_events = []
@@ -24,8 +52,15 @@ class Apple2Bus:
         self.speaker_on = false
         self.speaker_toggles = 0
 
+    proc _reset_language_card_state(self):
+        self.language_card_bank = 2
+        self.language_card_read_ram = false
+        self.language_card_write_ram = true
+        self.language_card_prewrite = false
+
     proc reset(self):
         self.events = []
+        self._reset_language_card_state()
         self.video_events = []
         var i = 0
         while i < 8:
@@ -95,11 +130,41 @@ class Apple2Bus:
         self.video_values[index] = value & 0xFF
         push(self.video_events, [addr, value & 0xFF])
 
+    proc _language_card_soft_switch(self, addr, writing):
+        let mode = addr & 0x03
+        if (addr & 0x08) == 0:
+            self.language_card_bank = 1
+        else:
+            self.language_card_bank = 2
+        if writing:
+            self.language_card_prewrite = false
+            self.language_card_write_ram = false
+        elif (addr & 0x01) == 0:
+            self.language_card_prewrite = false
+            self.language_card_write_ram = mode == 1 or mode == 2
+        elif self.language_card_prewrite == false:
+            self.language_card_prewrite = true
+            self.language_card_write_ram = false
+        else:
+            self.language_card_write_ram = mode == 1 or mode == 2
+        self.language_card_read_ram = mode == 0 or mode == 1
+
+    proc _language_card_ram_offset(self, addr):
+        if addr < 0xE000:
+            if self.language_card_bank == 1:
+                return addr - 0xD000
+            return 0x1000 + addr - 0xD000
+        return 0x2000 + addr - 0xE000
+
     proc read8(self, addr):
         addr = addr & 0xFFFF
         if addr < 0xC000:
             return self.ram[addr]
         if addr >= 0xD000:
+            if addr >= 0xF800:
+                return self.rom[addr - 0xD000]
+            if self.language_card_read_ram:
+                return self.language_card_ram[self._language_card_ram_offset(addr)]
             return self.rom[addr - 0xD000]
         if addr == 0xC000:
             return self.keyboard_latch & 0xFF
@@ -119,6 +184,14 @@ class Apple2Bus:
             if self.uart.rx_ready() == 1:
                 return 0x80 | self.uart.rx_read()
             return 0x00
+        if (addr >= 0xC300 and addr <= 0xC303) or (addr >= 0xC308 and addr <= 0xC30B):
+            self._language_card_soft_switch(addr, false)
+            return 0x00
+        if addr >= 0xC100 and addr <= 0xC7FF:
+            let slot_number = (addr >> 8) - 0xC0
+            return self.slot_roms[slot_number][addr & 0xFF]
+        if addr >= 0xC800:
+            return self.expansion_rom[addr - 0xC800]
         return 0x00
 
     proc write8(self, addr, value):
@@ -129,6 +202,8 @@ class Apple2Bus:
             self._record_event(addr, value)
             return
         if addr >= 0xD000:
+            if addr < 0xF800 and self.language_card_write_ram:
+                self.language_card_ram[self._language_card_ram_offset(addr)] = value
             return
         if addr == 0xC010:
             self._read_keyboard_strobe()
@@ -141,6 +216,9 @@ class Apple2Bus:
             return
         if addr == 0xC080:
             self.uart.tx_write(value)
+            return
+        if (addr >= 0xC300 and addr <= 0xC303) or (addr >= 0xC308 and addr <= 0xC30B):
+            self._language_card_soft_switch(addr, true)
             return
 
     proc read16(self, addr):
@@ -159,6 +237,36 @@ class Apple2Bus:
             self.rom[i] = image[i] & 0xFF
             i = i + 1
         return 0
+
+    proc load_slot_rom(self, slot, image):
+        if type(slot) != "number" or slot != int(slot):
+            raise "Apple2Bus slot ROM number must be an integer"
+        if slot < 1 or slot > 7:
+            raise "Apple2Bus slot ROM is only available for slots 1-7"
+        if type(image) != "array" or len(image) != 0x100:
+            raise "Apple2Bus slot ROM image must be exactly 256 bytes"
+        var slot_byte_index = 0
+        while slot_byte_index < 0x100:
+            self.slot_roms[slot][slot_byte_index] = image[slot_byte_index] & 0xFF
+            slot_byte_index = slot_byte_index + 1
+        return 0
+
+    proc load_expansion_rom(self, image):
+        if type(image) != "array" or len(image) != 0x800:
+            raise "Apple2Bus expansion ROM image must be exactly 2048 bytes"
+        var expansion_byte_index = 0
+        while expansion_byte_index < 0x800:
+            self.expansion_rom[expansion_byte_index] = image[expansion_byte_index] & 0xFF
+            expansion_byte_index = expansion_byte_index + 1
+        return 0
+
+    proc language_card_state(self):
+        return [
+            self.language_card_bank,
+            self.language_card_read_ram,
+            self.language_card_write_ram,
+            self.language_card_prewrite,
+        ]
 
     proc serial_input(self, value):
         if type(value) == "string":
