@@ -9,6 +9,8 @@ uint16_t cpu_pc(void);
 void bus_reset(void);
 uint8_t bus_read(uint16_t address);
 void bus_write(uint16_t address, uint8_t value);
+uint8_t bus_video_value(uint8_t index);
+uint8_t bus_video_state(void);
 
 #define HOST_RX_CAPACITY 64
 #define HOST_TX_CAPACITY 256
@@ -110,6 +112,56 @@ static int run_keyboard_checks(void) {
     return failures;
 }
 
+static int run_video_checks(void) {
+    int failures = 0;
+    bus_reset();
+    failures += check(bus_video_state() == 0x01,
+                      "video state resets to text");
+    bus_write(0xC050, 0x10);
+    failures += check(bus_read(0xC050) == 0x80 &&
+                      bus_video_state() == 0x00,
+                      "C050 write and read clear text");
+    bus_write(0xC051, 0x11);
+    failures += check(bus_read(0xC051) == 0x80 &&
+                      bus_video_state() == 0x01,
+                      "C051 write and read set text");
+    bus_write(0xC052, 0x12);
+    failures += check(bus_read(0xC052) == 0x80 &&
+                      bus_video_state() == 0x01,
+                      "C052 write and read clear mixed");
+    bus_write(0xC053, 0x13);
+    failures += check(bus_read(0xC053) == 0x80 &&
+                      bus_video_state() == 0x03,
+                      "C053 write and read set mixed");
+    bus_write(0xC054, 0x14);
+    failures += check(bus_read(0xC054) == 0x80 &&
+                      bus_video_state() == 0x03,
+                      "C054 write and read select page one");
+    bus_write(0xC055, 0x15);
+    failures += check(bus_read(0xC055) == 0x80 &&
+                      bus_video_state() == 0x07,
+                      "C055 write and read select page two");
+    bus_write(0xC056, 0x16);
+    failures += check(bus_read(0xC056) == 0x80 &&
+                      bus_video_state() == 0x07,
+                      "C056 write and read select lores");
+    bus_write(0xC057, 0x17);
+    failures += check(bus_read(0xC057) == 0x80 &&
+                      bus_video_state() == 0x0F,
+                      "C057 write and read select hires");
+    failures += check(bus_video_state() == 0x0F &&
+                      bus_video_value(0) == 0x10 &&
+                      bus_video_value(7) == 0x17,
+                      "video accessor retains packed state and latches");
+    bus_reset();
+    failures += check(bus_video_state() == 0x01,
+                      "video reset restores packed text state");
+    failures += check(bus_read(0xC057) == 0x00 &&
+                      bus_video_state() == 0x09,
+                      "video read updates state without a latch");
+    return failures;
+}
+
 static int run_banking_checks(void) {
     uint8_t rom_d000;
     int failures = 0;
@@ -170,6 +222,7 @@ int main(void) {
                       tx_bytes[sizeof(signature)] == 'X',
                       "serial input is echoed");
     failures += run_banking_checks();
+    failures += run_video_checks();
 
     if (failures != 0) {
         printf("APPLE2 HOST TEST FAILED\n");

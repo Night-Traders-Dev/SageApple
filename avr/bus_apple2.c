@@ -16,6 +16,7 @@ static uint8_t keyboard_latch_valid;
 static uint8_t speaker_on;
 static uint8_t video_switches[8];
 static uint8_t video_values[8];
+static uint8_t video_state;
 static uint16_t video_event_count;
 static uint16_t video_last_address;
 static uint8_t video_last_value;
@@ -27,6 +28,10 @@ static uint8_t language_card_prewrite;
 #define LANGUAGE_CARD_BANK_SIZE 0x80
 #define LANGUAGE_CARD_BANK2_BASE 0x80
 #define LANGUAGE_CARD_SHARED_BASE 0x100
+#define VIDEO_TEXT 0x01
+#define VIDEO_MIXED 0x02
+#define VIDEO_PAGE2 0x04
+#define VIDEO_HIRES 0x08
 
 #ifndef HOST
 static uint8_t uart_rx_ready(void) {
@@ -118,6 +123,35 @@ static void record_video_write(uint16_t address, uint8_t value) {
     video_last_value = value;
 }
 
+static void video_switch(uint16_t address) {
+    switch (address) {
+    case 0xC050:
+        video_state &= (uint8_t)~VIDEO_TEXT;
+        break;
+    case 0xC051:
+        video_state |= VIDEO_TEXT;
+        break;
+    case 0xC052:
+        video_state &= (uint8_t)~VIDEO_MIXED;
+        break;
+    case 0xC053:
+        video_state |= VIDEO_MIXED;
+        break;
+    case 0xC054:
+        video_state &= (uint8_t)~VIDEO_PAGE2;
+        break;
+    case 0xC055:
+        video_state |= VIDEO_PAGE2;
+        break;
+    case 0xC056:
+        video_state &= (uint8_t)~VIDEO_HIRES;
+        break;
+    case 0xC057:
+        video_state |= VIDEO_HIRES;
+        break;
+    }
+}
+
 static void toggle_speaker(void) {
     speaker_on = (uint8_t)(!speaker_on);
 }
@@ -180,6 +214,7 @@ void bus_reset(void) {
         video_switches[i] = 0;
         video_values[i] = 0;
     }
+    video_state = VIDEO_TEXT;
     video_event_count = 0;
     video_last_address = 0;
     video_last_value = 0;
@@ -218,7 +253,9 @@ uint8_t bus_read(uint16_t address) {
         return speaker_on ? 0x80 : 0x00;
     }
     if (address >= 0xC050 && address <= 0xC057) {
-        uint8_t index = (uint8_t)(address - 0xC050);
+        uint8_t index;
+        video_switch(address);
+        index = (uint8_t)(address - 0xC050);
         return video_switches[index] ? 0x80 : 0x00;
     }
     if (address == 0xC081) {
@@ -259,7 +296,9 @@ void bus_write(uint16_t address, uint8_t value) {
         return;
     }
     if (address >= 0xC050 && address <= 0xC057) {
-        uint8_t index = (uint8_t)(address - 0xC050);
+        uint8_t index;
+        video_switch(address);
+        index = (uint8_t)(address - 0xC050);
         video_switches[index] = 1;
         video_values[index] = value;
         return;
@@ -292,4 +331,8 @@ uint8_t bus_video_last_value(void) {
 
 uint8_t bus_video_value(uint8_t index) {
     return index < 8 ? video_values[index] : 0;
+}
+
+uint8_t bus_video_state(void) {
+    return video_state;
 }

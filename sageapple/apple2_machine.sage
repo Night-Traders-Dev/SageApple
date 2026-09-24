@@ -44,3 +44,12 @@ class Apple2Machine:
 
     proc render_hires(self, page, on_char, off_char):
         return join(self.hires.render_lines(page, on_char, off_char), "\n")
+
+    proc video_snapshot(self):
+        return self.bus.video_snapshot()
+
+    proc video_mode(self):
+        return self.bus.video_mode()
+
+    proc video_page(self):
+        return self.bus.video_page()

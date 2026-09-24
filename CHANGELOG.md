@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Canonical Apple II video soft-switch state
+- `bus/apple2bus.sage` — canonical `text`, `mixed`, `page2`, and `hires` state with `video_snapshot()`, `video_mode()`, and `video_page()`; `$C050-$C057` reads and writes update state while legacy latch arrays and write events remain compatible
+- `sageapple/apple2_machine.sage` — forwards the canonical video state API
+- `avr/bus_apple2.c` and `avr/apple2_host_main.c` — packed text/mixed/page2/hires byte, shared read/write switch helper, accessor, and focused host checks without a FIFO, framebuffer, or ROM changes
+- `tests/bus/test_apple2_map.sage` and `tests/display/test_apple2_hires.sage` — 164 and 31 focused checks covering reset, all write/read switches, modes, pages, mixed state, latch compatibility, event preservation, machine forwarding, and read-only rendering
+- Focused host metadata is 20 suites and 551 checks; the Apple II AVR profile measures 17,292 bytes of text and 1,583 bytes of BSS
+
 ### Host Apple II HGR page projection
 - `sageapple/apple2_hires.sage` — read-only 280x192 projection of Apple II HGR pages 1 and 2 at `$2000` and `$4000`, with live interleaved reads, low-seven-bit pixels, and no framebuffer or bus copy
 - `sageapple/apple2_machine.sage` — shared HGR view plus `hires_pixel()` and newline-joined `render_hires()` forwarding

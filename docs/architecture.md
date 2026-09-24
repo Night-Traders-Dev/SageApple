@@ -15,8 +15,9 @@ edges:
   by a thin C/assembly runtime;
 - a separate staged **Apple II compatibility profile** with a SageLang
   `Apple2Bus`, replacement ROM at `$D000`, language-card banking, slot and
-  expansion ROM windows, soft switches, serial bridge, text/hi-res write
-  events, and host-only 40x24 text-page and 280x192 HGR projections.
+  expansion ROM windows, soft switches, canonical text/mixed/page/graphics
+  state, serial bridge, text/hi-res write events, and host-only 40x24
+  text-page and 280x192 HGR projections.
 
 The legacy profile boots on the host and the real chip. The reduced Apple II
 profile is intentionally separate and does not yet reproduce the complete
@@ -66,7 +67,7 @@ AVR chip.
 | [docs/os.md](os.md) | OS console, monitor, filesystem, graphics, boot |
 | [docs/avr.md](avr.md) | ATmega328P port, C runtime, flashing |
 | [docs/tools.md](tools.md) | host-side tools (hex, ROM, table generation) |
-| [docs/tests.md](tests.md) | the 20 validation suites |
+| [docs/tests.md](tests.md) | the 20 validation suites and 551 checks |
 
 ## Key design decisions
 
@@ -90,6 +91,9 @@ AVR chip.
    the identical session through the C core (`make host-test`) and must
    produce byte-identical output — host bus vs AVR bus equivalence, proven
    mechanically.
+6. **Video soft switches have canonical state.** `Apple2Bus` applies
+   `$C050-$C057` on reads and writes, exposes text, mixed, page, and mode
+   projections, and keeps the legacy address latches and write log separate.
 
 ## Execution models
 
@@ -127,8 +131,10 @@ the host budget belongs to the emulator state; see [docs/avr.md](avr.md).)
 | `sage6502/opcodes.sage` | declarative opcode table (parallel to cpu.sage) |
 | `bus/bus.sage` | 64 KB flat byte-array bus |
 | `bus/applebus.sage` | the AppleBus: RAM + ROM + memory-mapped devices |
+| `bus/apple2bus.sage` | Apple II compatibility bus, video soft-switch state, and latches |
 | `sageapple/apple2_text.sage` | host-only 40x24 Apple II text-page projection |
 | `sageapple/apple2_hires.sage` | host-only 280x192 Apple II HGR projection |
+| `sageapple/apple2_machine.sage` | Apple II CPU wrapper and forwarded video state API |
 | `devices/*.sage` | UART, SPI master, OLED display, NOR flash, speaker models |
 | `basic/basic.sage` | Applesoft BASIC interpreter (PRINT/LET/GOTO/IF/FOR/INPUT/GOSUB/DEF FN/READ/DATA...) |
 | `compiler/asm6502.sage` | two-pass 6502 assembler |

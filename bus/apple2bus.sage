@@ -46,6 +46,7 @@ class Apple2Bus:
         self.video_events = []
         self.video_switches = [false, false, false, false, false, false, false, false]
         self.video_values = [0, 0, 0, 0, 0, 0, 0, 0]
+        self._reset_video_state()
         self.keyboard_queue = []
         self.keyboard_latch = 0x00
         self.keyboard_strobe = false
@@ -63,6 +64,7 @@ class Apple2Bus:
         self.events = []
         self._reset_language_card_state()
         self.video_events = []
+        self._reset_video_state()
         var i = 0
         while i < 8:
             self.video_switches[i] = false
@@ -148,6 +150,31 @@ class Apple2Bus:
             self.speaker_on = true
         self.speaker_toggles = self.speaker_toggles + 1
 
+    proc _reset_video_state(self):
+        self.text = true
+        self.mixed = false
+        self.page2 = false
+        self.hires = false
+
+    proc _apply_video_switch(self, addr):
+        let index = addr - 0xC050
+        if index == 0:
+            self.text = false
+        elif index == 1:
+            self.text = true
+        elif index == 2:
+            self.mixed = false
+        elif index == 3:
+            self.mixed = true
+        elif index == 4:
+            self.page2 = false
+        elif index == 5:
+            self.page2 = true
+        elif index == 6:
+            self.hires = false
+        elif index == 7:
+            self.hires = true
+
     proc _set_video_switch(self, addr, value):
         let index = addr - 0xC050
         self.video_switches[index] = true
@@ -206,6 +233,7 @@ class Apple2Bus:
                 return 0x80
             return 0x00
         if addr >= 0xC050 and addr <= 0xC057:
+            self._apply_video_switch(addr)
             let index = addr - 0xC050
             if self.video_switches[index]:
                 return 0x80
@@ -242,6 +270,7 @@ class Apple2Bus:
             self._toggle_speaker()
             return
         if addr >= 0xC050 and addr <= 0xC057:
+            self._apply_video_switch(addr)
             self._set_video_switch(addr, value)
             return
         if addr == 0xC080:
@@ -326,6 +355,21 @@ class Apple2Bus:
 
     proc serial_output(self):
         return self.serial_text()
+
+    proc video_snapshot(self):
+        return [self.text, self.mixed, self.page2, self.hires]
+
+    proc video_mode(self):
+        if self.text:
+            return "text"
+        if self.hires:
+            return "hires"
+        return "lores"
+
+    proc video_page(self):
+        if self.page2:
+            return 2
+        return 1
 
     proc video_state(self, index):
         if index >= 0 and index < 8:
