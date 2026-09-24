@@ -1,10 +1,12 @@
 import bus.apple2bus
 import sage6502.cpu
+import sageapple.apple2_text
 
 class Apple2Machine:
     proc init(self):
         self.bus = apple2bus.Apple2Bus()
         self.cpu = cpu.CPU(self.bus)
+        self.text = apple2_text.Apple2TextPage(self.bus)
         self.booted = false
 
     proc load_rom(self, image):
@@ -31,3 +33,6 @@ class Apple2Machine:
 
     proc serial_text(self):
         return self.bus.serial_text()
+
+    proc render_text(self, page, trim):
+        return join(self.text.render_lines(page, trim), "\n")

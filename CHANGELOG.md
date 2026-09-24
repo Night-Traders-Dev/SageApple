@@ -2,11 +2,17 @@
 
 ## [Unreleased]
 
+### Host Apple II text-page projection
+- `sageapple/apple2_text.sage` — read-only 40x24 projection of Apple II text pages 1 and 2, with inverse/flash decoding, fixed or trimmed lines, and pure ANSI output
+- `sageapple/apple2_machine.sage` — live host text view and newline-joined `render_text()`
+- `tests/display/test_apple2_text.sage` — 27 checks for mapping, validation, modes, page isolation, holes, trimming, live reads, and ANSI markers; `tests/boot/test_apple2_boot.sage` adds 2 rendering checks
+- Host suite total after this slice: **19 suites, 488 checks passing**; the renderer is host-only and does not alter AVR/C ROM generation
+
 ### Apple II keyboard latch and host/AVR input path
 - `bus/apple2bus.sage` — encoded string keyboard input, raw numeric/array keycodes, FIFO ordering, stable `$C000`, and `$C010` read/write acknowledgement
 - `sageapple/apple2_machine.sage` and `sageapple/apple2_rom.sage` — machine forwarding and replacement-ROM keyboard polling with high-bit text events
 - `avr/bus_apple2.c` and `avr/apple2_host_main.c` — one-byte UART keyboard polling, latch acknowledgement, and host coverage while preserving `$C080/$C081`
-- Regenerated `avr/rom_apple2.c`; the 18 host suites now pass 459 checks
+- Regenerated `avr/rom_apple2.c`; the preceding keyboard milestone passed 459 checks across 18 host suites
 
 ### Sage6502 CPU — Phase B/C/D refactoring and verification
 - `sage6502/constants.sage` — named instruction IDs (LDA=0, …, BRK=55) and
