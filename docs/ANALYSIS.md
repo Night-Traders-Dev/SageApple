@@ -61,17 +61,18 @@ Apple II-inspired retrocomputer emulator in **SageLang**, targeting ATmega328P/A
 
 ---
 
-## Test Coverage: 15 Suites, 266 Checks (All Passing)
+## Test Coverage: 18 Suites, 459 Checks (All Passing)
 
-| Suite | Checks |
+| Suite area | Checks |
 |-------|--------|
-| 6502 CPU/OpCodes | 30 |
+| 6502 CPU/OpCodes | 49 |
 | BASIC | 49 |
-| Boot (boot/uart/monitor) | 24 |
-| Machine (OS/Apple2/Speaker) | 69 |
-| Compiler (asm6502/backend) | 31 |
+| Boot | 33 |
+| Apple II bus | 132 |
+| Machine (OS/Apple2/Speaker) | 75 |
+| Compiler (asm6502/backend) | 33 |
 | Display (SPI/OLED) | 38 |
-| Storage (Flash/FS) | 45 |
+| Storage (Flash/FS) | 50 |
 
 **AVR host-equivalence verified**
 
@@ -112,7 +113,7 @@ All install via `catalog.install_basic_apps()`, run with `RUN <NAME>`
 
 ## Current Status
 
-✅ **All 15 suites, 266 checks passing**  
+✅ **All 18 suites, 459 checks passing**
 ✅ **AVR host-equivalence verified**  
 ✅ **12 classic apps functional**  
 ✅ **README updated with single images**  

@@ -26,5 +26,8 @@ class Apple2Machine:
     proc serial_input(self, value):
         self.bus.serial_input(value)
 
+    proc keyboard_input(self, value):
+        self.bus.keyboard_input(value)
+
     proc serial_text(self):
         return self.bus.serial_text()

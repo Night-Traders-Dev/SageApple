@@ -49,6 +49,7 @@ class Apple2Bus:
         self.keyboard_queue = []
         self.keyboard_latch = 0x00
         self.keyboard_strobe = false
+        self.keyboard_latch_valid = false
         self.speaker_on = false
         self.speaker_toggles = 0
 
@@ -70,6 +71,7 @@ class Apple2Bus:
         self.keyboard_queue = []
         self.keyboard_latch = 0x00
         self.keyboard_strobe = false
+        self.keyboard_latch_valid = false
         self.speaker_on = false
         self.speaker_toggles = 0
         self.uart.rx = []
@@ -82,17 +84,36 @@ class Apple2Bus:
         if (addr >= 0x0400 and addr <= 0x0BFF) or (addr >= 0x2000 and addr <= 0x5FFF):
             push(self.events, [addr, value])
 
+    proc _encode_keyboard_char(self, value):
+        var code = ord(value)
+        if code >= 0x61 and code <= 0x7A:
+            code = code - 0x20
+        if code >= 0x41 and code <= 0x5A:
+            return code | 0x80
+        if code >= 0x30 and code <= 0x39:
+            return code | 0x80
+        if code == 0x20:
+            return 0xA0
+        if code == 0x0D or code == 0x0A:
+            return 0x8D
+        return code | 0x80
+
+    proc _promote_keyboard(self):
+        self.keyboard_latch = self.keyboard_queue[0]
+        self.keyboard_queue = slice(self.keyboard_queue, 1, len(self.keyboard_queue))
+        self.keyboard_strobe = true
+        self.keyboard_latch_valid = true
+
     proc _queue_keyboard(self, value):
         push(self.keyboard_queue, value & 0xFF)
-        if self.keyboard_strobe == false:
-            self.keyboard_latch = pop(self.keyboard_queue)
-            self.keyboard_strobe = true
+        if self.keyboard_strobe == false and self.keyboard_latch_valid == false:
+            self._promote_keyboard()
 
     proc keyboard_input(self, value):
         if type(value) == "string":
             var i = 0
             while i < len(value):
-                self._queue_keyboard(ord(value[i]))
+                self._queue_keyboard(self._encode_keyboard_char(value[i]))
                 i = i + 1
         elif type(value) == "array":
             var i = 0
@@ -109,13 +130,16 @@ class Apple2Bus:
         return self.keyboard_input(value)
 
     proc _read_keyboard_strobe(self):
-        if self.keyboard_strobe == false:
+        if self.keyboard_strobe == true:
+            self.keyboard_strobe = false
+            self.keyboard_latch = self.keyboard_latch & 0x7F
+            return 0x80
+        if self.keyboard_latch_valid == true:
             return 0x00
-        self.keyboard_strobe = false
         if len(self.keyboard_queue) > 0:
-            self.keyboard_latch = pop(self.keyboard_queue)
-            self.keyboard_strobe = true
-        return 0x80
+            self._promote_keyboard()
+            return 0x80
+        return 0x00
 
     proc _toggle_speaker(self):
         if self.speaker_on:
@@ -167,6 +191,12 @@ class Apple2Bus:
                 return self.language_card_ram[self._language_card_ram_offset(addr)]
             return self.rom[addr - 0xD000]
         if addr == 0xC000:
+            if self.keyboard_strobe == false and self.keyboard_latch_valid == true:
+                let value = self.keyboard_latch & 0x7F
+                self.keyboard_latch_valid = false
+                if len(self.keyboard_queue) > 0:
+                    self._promote_keyboard()
+                return value
             return self.keyboard_latch & 0xFF
         if addr == 0xC010:
             return self._read_keyboard_strobe()

@@ -12,14 +12,6 @@ proc check(cond, msg):
         failures = failures + 1
         print("  FAIL:", msg)
 
-proc contains(hay, needle):
-    var i = 0
-    while i + len(needle) <= len(hay):
-        if slice(hay, i, i + len(needle)) == needle:
-            return true
-        i = i + 1
-    return false
-
 let machine = apple2_machine.Apple2Machine()
 let bus = machine.bus
 let machine_cpu = machine.cpu
@@ -33,15 +25,15 @@ while steps < 200:
     steps = steps + 1
 check(bus.serial_text() == "A2\r\nHI\r\n", "replacement ROM emits its signature")
 check(len(bus.events) == 2, "replacement ROM records text-page writes")
-check(bus.events[0] == [0x0400, 0x48], "text event contains H")
-check(bus.events[1] == [0x0401, 0x49], "text event contains I")
-bus.serial_input("X")
+check(bus.events[0] == [0x0400, 0xC8], "text event contains high-bit H")
+check(bus.events[1] == [0x0401, 0xC9], "text event contains high-bit I")
+machine.keyboard_input("X")
 steps = 0
 while steps < 2000:
     machine_cpu.step()
     steps = steps + 1
-check(contains(bus.serial_text(), "X"), "replacement ROM echoes serial input")
-check(bus.events[2] == [0x0402, 0x58], "serial input updates text memory")
+check(bus.serial_text() == "A2\r\nHI\r\nX", "replacement ROM echoes keyboard input")
+check(bus.events[2] == [0x0402, 0xD8], "keyboard input updates text memory with high-bit X")
 
 print("")
 print("Results:", passes, "passed,", failures, "failed")

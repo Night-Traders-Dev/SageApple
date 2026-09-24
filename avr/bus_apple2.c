@@ -12,6 +12,7 @@ static uint8_t ram[1024];
 static uint8_t language_card_ram[512];
 static uint8_t keyboard_latch;
 static uint8_t keyboard_strobe;
+static uint8_t keyboard_latch_valid;
 static uint8_t speaker_on;
 static uint8_t video_switches[8];
 static uint8_t video_values[8];
@@ -58,6 +59,51 @@ static void uart_tx(uint8_t value) {
     host_uart_tx(value);
 }
 #endif
+
+static uint8_t apple_key_from_uart(uint8_t value) {
+    if (value >= 'a' && value <= 'z') {
+        value = (uint8_t)(value - 0x20);
+    }
+    if (value >= 'A' && value <= 'Z') {
+        return (uint8_t)(0xC0 | (value - 'A' + 1));
+    }
+    if (value >= '0' && value <= '9') {
+        return (uint8_t)(0xB0 | (value - '0'));
+    }
+    if (value == ' ') {
+        return 0xA0;
+    }
+    if (value == '\r' || value == '\n') {
+        return 0x8D;
+    }
+    return (uint8_t)(value | 0x80);
+}
+
+static void keyboard_poll_uart(void) {
+    if (keyboard_strobe == 0 && keyboard_latch_valid == 0 && uart_rx_ready()) {
+        keyboard_latch = apple_key_from_uart(uart_rx());
+        keyboard_strobe = 1;
+        keyboard_latch_valid = 1;
+    }
+}
+
+static uint8_t keyboard_read_strobe(void) {
+    if (keyboard_strobe != 0) {
+        keyboard_strobe = 0;
+        keyboard_latch &= 0x7F;
+        return 0x80;
+    }
+    if (keyboard_latch_valid != 0) {
+        return 0x00;
+    }
+    keyboard_poll_uart();
+    if (keyboard_strobe != 0) {
+        keyboard_strobe = 0;
+        keyboard_latch &= 0x7F;
+        return 0x80;
+    }
+    return 0x00;
+}
 
 static uint8_t is_video_write(uint16_t address) {
     return (uint8_t)(((address >= 0x0400 && address <= 0x0BFF) ||
@@ -128,6 +174,7 @@ void bus_reset(void) {
     uint8_t i;
     keyboard_latch = 0;
     keyboard_strobe = 0;
+    keyboard_latch_valid = 0;
     speaker_on = 0;
     for (i = 0; i < 8; i++) {
         video_switches[i] = 0;
@@ -156,12 +203,15 @@ uint8_t bus_read(uint16_t address) {
         return read_rom((uint16_t)(address - 0xD000));
     }
     if (address == 0xC000) {
+        if (keyboard_strobe == 0 && keyboard_latch_valid != 0) {
+            uint8_t value = keyboard_latch & 0x7F;
+            keyboard_latch_valid = 0;
+            return value;
+        }
         return keyboard_latch;
     }
     if (address == 0xC010) {
-        uint8_t value = keyboard_strobe ? 0x80 : 0x00;
-        keyboard_strobe = 0;
-        return value;
+        return keyboard_read_strobe();
     }
     if (address == 0xC030) {
         toggle_speaker();
@@ -201,7 +251,7 @@ void bus_write(uint16_t address, uint8_t value) {
         return;
     }
     if (address == 0xC010) {
-        keyboard_strobe = 0;
+        keyboard_read_strobe();
         return;
     }
     if (address == 0xC030) {

@@ -63,6 +63,53 @@ static int check(int condition, const char *name) {
     return 1;
 }
 
+static int run_keyboard_checks(void) {
+    int failures = 0;
+    bus_reset();
+    failures += check(bus_read(0xC010) == 0x00,
+                      "C010 reports no keyboard key before UART input");
+    host_uart_feed('a');
+    failures += check(bus_read(0xC010) == 0x80,
+                      "C010 polls an encoded UART keyboard key");
+    failures += check(bus_read(0xC000) == 0x41,
+                      "C000 retains the encoded A key data");
+    failures += check(bus_read(0xC000) == 0x41,
+                      "C000 remains stable after acknowledgement");
+    failures += check(bus_read(0xC010) == 0x00,
+                      "C010 read acknowledges the current key");
+
+    host_uart_feed('B');
+    failures += check(bus_read(0xC010) == 0x80,
+                      "C010 polls a second encoded UART key");
+    failures += check(bus_read(0xC000) == 0x42,
+                      "C000 retains the encoded B key data");
+    bus_write(0xC010, 0x00);
+    failures += check(bus_read(0xC000) == 0x42,
+                      "C010 write acknowledges and clears the latch");
+    failures += check(bus_read(0xC010) == 0x00,
+                      "C010 write leaves no pending key");
+
+    host_uart_feed('0');
+    host_uart_feed(' ');
+    host_uart_feed('\r');
+    failures += check(bus_read(0xC010) == 0x80 &&
+                      bus_read(0xC000) == 0x30,
+                      "keyboard UART order starts with encoded zero");
+    failures += check(bus_read(0xC010) == 0x80 &&
+                      bus_read(0xC000) == 0x20,
+                      "keyboard UART order advances to space");
+    failures += check(bus_read(0xC010) == 0x80 &&
+                      bus_read(0xC000) == 0x0D,
+                      "keyboard UART order advances to return");
+    failures += check(bus_read(0xC010) == 0x00,
+                      "C010 read acknowledges the return key");
+
+    host_uart_feed('Q');
+    failures += check(bus_read(0xC081) == 0xD1,
+                      "C081 retains direct serial input");
+    return failures;
+}
+
 static int run_banking_checks(void) {
     uint8_t rom_d000;
     int failures = 0;
@@ -115,6 +162,7 @@ int main(void) {
     failures += check(tx_length == sizeof(signature) &&
                       memcmp(tx_bytes, signature, sizeof(signature)) == 0,
                       "serial signature is A2\\r\\nHI\\r\\n");
+    failures += run_keyboard_checks();
 
     host_uart_feed('X');
     run_steps(2000);

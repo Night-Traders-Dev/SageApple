@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Apple II keyboard latch and host/AVR input path
+- `bus/apple2bus.sage` — encoded string keyboard input, raw numeric/array keycodes, FIFO ordering, stable `$C000`, and `$C010` read/write acknowledgement
+- `sageapple/apple2_machine.sage` and `sageapple/apple2_rom.sage` — machine forwarding and replacement-ROM keyboard polling with high-bit text events
+- `avr/bus_apple2.c` and `avr/apple2_host_main.c` — one-byte UART keyboard polling, latch acknowledgement, and host coverage while preserving `$C080/$C081`
+- Regenerated `avr/rom_apple2.c`; the 18 host suites now pass 459 checks
+
 ### Sage6502 CPU — Phase B/C/D refactoring and verification
 - `sage6502/constants.sage` — named instruction IDs (LDA=0, …, BRK=55) and
   addressing modes (M_IMM=0, …, M_IMP=12)

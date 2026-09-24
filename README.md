@@ -43,7 +43,7 @@ hardware:
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 | M14 | Apple II software stack: DOS 3.3 command processor, full Applesoft BASIC, host Apple II monitor (`*` dumps/disassembly/go), unified `]` BASIC / `*` monitor shell, SAGEFS v2 with DOS file types |
 
-Host suites: **18 suites, 356 checks passing** — plus the AVR host
+Host suites: **18 suites, 459 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture
@@ -99,7 +99,7 @@ sage tests/machine/test_os.sage  # full end-to-end OS check (24 checks)
 ./sagemake run --test            # scripted verification session (no prompt)
 ```
 
-All 15 suites run the same way; see [docs/tests.md](docs/tests.md).
+All 18 suites run the same way; see [docs/tests.md](docs/tests.md).
 
 ## Hardware
 
@@ -148,10 +148,10 @@ over the physical UART (9,600 baud); `C-a d`/`C-a k` returns to the
 
 ## Test suite
 
-Run any module standalone, or all 15:
+Run any module standalone, or all 18:
 
 ```sh
-for t in tests/*/*.sage; do sage "$t"; done   # 356 checks, all OK
+for t in tests/*/*.sage; do sage "$t"; done   # 459 checks, all OK
 ```
 
 ## Repository layout
