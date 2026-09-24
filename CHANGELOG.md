@@ -8,6 +8,7 @@
 - `tests/display/test_apple2_lores.sage` — 26 checks for mapping, bounds, all 16 colors, page isolation, holes, live overwrites, dimensions, palette validation, machine forwarding, and read-only bus behavior
 - Host suite total after this slice: **21 suites, 577 checks passing**; the projection is host-only and does not alter AVR/C, Apple2Bus, or ROM generation
 - `assets/SageApple.png` and `assets/SageAppleInfo.png` — refreshed staged Apple II architecture, memory maps, measured budgets, and 21/577 status
+- HGR projection correction — seven contiguous pixels per byte (bits 0–6), with bit 7 reserved as the palette bit
 
 ### Canonical Apple II video soft-switch state
 - `bus/apple2bus.sage` — canonical `text`, `mixed`, `page2`, and `hires` state with `video_snapshot()`, `video_mode()`, and `video_page()`; `$C050-$C057` reads and writes update state while legacy latch arrays and write events remain compatible

@@ -77,16 +77,35 @@ check(low_view.pixel(0, 0, 1) and low_view.pixel(6, 0, 1) and not low_view.pixel
 
 let order_bus = apple2bus.Apple2Bus()
 let order_view = apple2_hires.Apple2HiresPage(order_bus)
+var order_index = 0
+while order_index < 40:
+    order_bus.write8(0x2000 + order_index, 0x7F)
+    order_index = order_index + 1
+var all_positions_mapped = true
+var order_x = 0
+while order_x < 280:
+    if not order_view.pixel(order_x, 0, 1):
+        all_positions_mapped = false
+    order_x = order_x + 1
 order_bus.write8(0x2000, 0x01)
 order_bus.write8(0x2001, 0x02)
 let order_row = order_view.render_row(1, 0, "#", ".")
-check(slice(order_row, 0, 10) == "#........#", "bit zero is the leftmost HGR pixel")
+check(all_positions_mapped and order_view.pixel(8, 0, 1) and slice(order_row, 0, 9) == "#.......#", "seven-bit HGR mapping covers all 280 positions")
 
 let high_bus = apple2bus.Apple2Bus()
 let high_view = apple2_hires.Apple2HiresPage(high_bus)
-high_bus.write8(0x2000, 0x80)
+var high_index = 0
+while high_index < 40:
+    high_bus.write8(0x2000 + high_index, 0x80)
+    high_index = high_index + 1
+var high_positions_clear = true
+var high_x = 0
+while high_x < 280:
+    if high_view.pixel(high_x, 0, 1):
+        high_positions_clear = false
+    high_x = high_x + 1
 let high_row = high_view.render_row(1, 0, "#", ".")
-check(not high_view.pixel(0, 0, 1) and not high_view.pixel(7, 0, 1) and not contains(high_row, "#"), "HGR bit seven is ignored")
+check(high_positions_clear and not contains(high_row, "#"), "HGR bit seven is ignored")
 
 let hole_bus = apple2bus.Apple2Bus()
 let hole_view = apple2_hires.Apple2HiresPage(hole_bus)
@@ -98,7 +117,8 @@ let isolation_bus = apple2bus.Apple2Bus()
 let isolation_view = apple2_hires.Apple2HiresPage(isolation_bus)
 isolation_bus.write8(0x2000, 0x01)
 isolation_bus.write8(0x4000, 0x02)
-check(isolation_view.pixel(0, 0, 1) and not isolation_view.pixel(1, 0, 1) and not isolation_view.pixel(0, 0, 2) and isolation_view.pixel(1, 0, 2), "HGR pages remain isolated")
+isolation_bus.write8(0x4027, 0x40)
+check(isolation_view.pixel(0, 0, 1) and not isolation_view.pixel(1, 0, 1) and not isolation_view.pixel(0, 0, 2) and isolation_view.pixel(1, 0, 2) and isolation_view.pixel(279, 0, 2), "HGR pages remain isolated and reach the final byte")
 
 let live_bus = apple2bus.Apple2Bus()
 let live_view = apple2_hires.Apple2HiresPage(live_bus)

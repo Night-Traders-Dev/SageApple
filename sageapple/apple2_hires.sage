@@ -27,8 +27,8 @@ class Apple2HiresPage:
             raise "Apple2HiresPage x must be 0..279"
         if type(y) != "number" or y != int(y) or y < 0 or y > 191:
             raise "Apple2HiresPage y must be 0..191"
-        let byte_column = int(x / 8)
-        let bit = x % 8
+        let byte_column = int(x / 7)
+        let bit = x % 7
         let value = self.read_byte(y, byte_column, page)
         return ((value & 0x7F) & (1 << bit)) != 0
 
