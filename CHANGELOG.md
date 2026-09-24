@@ -2,12 +2,19 @@
 
 ## [Unreleased]
 
+### Host Apple II lo-res page projection
+- `sageapple/apple2_lores.sage` — read-only 40x24 projection of Apple II lo-res pages 1 and 2 at `$0400` and `$0800`, with 80 horizontal cells, high/low nibble color decoding, 16-entry palettes, and no framebuffer or bus copy
+- `sageapple/apple2_machine.sage` — shared lo-res view plus `lores_color()` and newline-joined `render_lores()` forwarding
+- `tests/display/test_apple2_lores.sage` — 26 checks for mapping, bounds, all 16 colors, page isolation, holes, live overwrites, dimensions, palette validation, machine forwarding, and read-only bus behavior
+- Host suite total after this slice: **21 suites, 577 checks passing**; the projection is host-only and does not alter AVR/C, Apple2Bus, or ROM generation
+- `assets/SageApple.png` and `assets/SageAppleInfo.png` — refreshed staged Apple II architecture, memory maps, measured budgets, and 21/577 status
+
 ### Canonical Apple II video soft-switch state
 - `bus/apple2bus.sage` — canonical `text`, `mixed`, `page2`, and `hires` state with `video_snapshot()`, `video_mode()`, and `video_page()`; `$C050-$C057` reads and writes update state while legacy latch arrays and write events remain compatible
 - `sageapple/apple2_machine.sage` — forwards the canonical video state API
 - `avr/bus_apple2.c` and `avr/apple2_host_main.c` — packed text/mixed/page2/hires byte, shared read/write switch helper, accessor, and focused host checks without a FIFO, framebuffer, or ROM changes
 - `tests/bus/test_apple2_map.sage` and `tests/display/test_apple2_hires.sage` — 164 and 31 focused checks covering reset, all write/read switches, modes, pages, mixed state, latch compatibility, event preservation, machine forwarding, and read-only rendering
-- Focused host metadata is 20 suites and 551 checks; the Apple II AVR profile measures 17,292 bytes of text and 1,583 bytes of BSS
+- Focused host metadata is 21 suites and 577 checks; the Apple II AVR profile measures 17,292 bytes of text and 1,583 bytes of BSS
 
 ### Host Apple II HGR page projection
 - `sageapple/apple2_hires.sage` — read-only 280x192 projection of Apple II HGR pages 1 and 2 at `$2000` and `$4000`, with live interleaved reads, low-seven-bit pixels, and no framebuffer or bus copy

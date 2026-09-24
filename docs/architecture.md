@@ -17,7 +17,7 @@ edges:
   `Apple2Bus`, replacement ROM at `$D000`, language-card banking, slot and
   expansion ROM windows, soft switches, canonical text/mixed/page/graphics
   state, serial bridge, text/hi-res write events, and host-only 40x24
-  text-page and 280x192 HGR projections.
+  text-page, 40x24/80-cell lo-res, and 280x192 HGR projections.
 
 The legacy profile boots on the host and the real chip. The reduced Apple II
 profile is intentionally separate and does not yet reproduce the complete
@@ -67,7 +67,7 @@ AVR chip.
 | [docs/os.md](os.md) | OS console, monitor, filesystem, graphics, boot |
 | [docs/avr.md](avr.md) | ATmega328P port, C runtime, flashing |
 | [docs/tools.md](tools.md) | host-side tools (hex, ROM, table generation) |
-| [docs/tests.md](tests.md) | the 20 validation suites and 551 checks |
+| [docs/tests.md](tests.md) | the 21 validation suites and 577 checks |
 
 ## Key design decisions
 
@@ -94,6 +94,9 @@ AVR chip.
 6. **Video soft switches have canonical state.** `Apple2Bus` applies
    `$C050-$C057` on reads and writes, exposes text, mixed, page, and mode
    projections, and keeps the legacy address latches and write log separate.
+7. **Apple II page projections are host-only.** Text, lo-res, and HGR views
+   read the live `Apple2Bus` without a framebuffer, RAM copy, event mutation,
+   or bus writes, and are excluded from the AVR image and ROM generation.
 
 ## Execution models
 
@@ -133,6 +136,7 @@ the host budget belongs to the emulator state; see [docs/avr.md](avr.md).)
 | `bus/applebus.sage` | the AppleBus: RAM + ROM + memory-mapped devices |
 | `bus/apple2bus.sage` | Apple II compatibility bus, video soft-switch state, and latches |
 | `sageapple/apple2_text.sage` | host-only 40x24 Apple II text-page projection |
+| `sageapple/apple2_lores.sage` | host-only 40x24 Apple II lo-res projection with 80 horizontal color cells |
 | `sageapple/apple2_hires.sage` | host-only 280x192 Apple II HGR projection |
 | `sageapple/apple2_machine.sage` | Apple II CPU wrapper and forwarded video state API |
 | `devices/*.sage` | UART, SPI master, OLED display, NOR flash, speaker models |

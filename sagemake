@@ -11,7 +11,7 @@ Usage:
 
 Commands:
     build      Generate artifacts + build AVR firmware (default pipeline)
-    test       Run all 20 host test suites (551 checks)
+    test       Run all 21 host test suites (577 checks)
     run        Boot the OS to an interactive shell on the host (persistent flash disk)
     avr        Build the ATmega328P firmware only (make -C avr)
     apple2     Build the reduced Apple II-compatible AVR profile

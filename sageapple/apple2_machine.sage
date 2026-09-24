@@ -1,6 +1,7 @@
 import bus.apple2bus
 import sage6502.cpu
 import sageapple.apple2_hires
+import sageapple.apple2_lores
 import sageapple.apple2_text
 
 class Apple2Machine:
@@ -9,6 +10,7 @@ class Apple2Machine:
         self.cpu = cpu.CPU(self.bus)
         self.text = apple2_text.Apple2TextPage(self.bus)
         self.hires = apple2_hires.Apple2HiresPage(self.bus)
+        self.lores = apple2_lores.Apple2LoresPage(self.bus)
         self.booted = false
 
     proc load_rom(self, image):
@@ -38,6 +40,12 @@ class Apple2Machine:
 
     proc render_text(self, page, trim):
         return join(self.text.render_lines(page, trim), "\n")
+
+    proc lores_color(self, x, y, page):
+        return self.lores.color(x, y, page)
+
+    proc render_lores(self, page, palette):
+        return join(self.lores.render_lines(page, palette), "\n")
 
     proc hires_pixel(self, page, x, y):
         return self.hires.pixel(x, y, page)
