@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **21 SageLang suites: 577 checks**, each
+SageApple is validated by **22 SageLang suites: 706 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -22,7 +22,7 @@ sage tests/boot/test_monitor.sage
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
 | `tests/boot/test_uart.sage` | 8 | UART device RX/TX/status + echo-terminal |
 | `tests/boot/test_monitor.sage` | 10 | AVR monitor session |
-| `tests/boot/test_apple2_boot.sage` | 11 | replacement ROM boot, vectors, serial signature, high-bit text events, live rendering, keyboard echo |
+| `tests/boot/test_apple2_boot.sage` | 26 | replacement ROM boot, vectors, serial signature, high-bit text events, live rendering, active display, keyboard echo |
 | `tests/bus/test_apple2_map.sage` | 164 | Apple II RAM/ROM map, banking, slot/expansion ROMs, keyboard latch/strobe, serial bridge, text/hi-res events, canonical video state and latches |
 | `tests/basic/test_basic.sage` | 49 | Applesoft arithmetic, strings, functions, control flow, errors |
 | `tests/display/test_spi.sage` | 9 | SPI framing, CS, loopback, counters |
@@ -30,12 +30,13 @@ sage tests/boot/test_monitor.sage
 | `tests/display/test_apple2_text.sage` | 27 | Apple II 40x24 text-page mapping, modes, validation, trimming, isolation, live reads, ANSI markers |
 | `tests/display/test_apple2_lores.sage` | 26 | Apple II 40x24/80-cell lo-res mapping, bounds, all 16 colors, palette rendering, validation, holes, isolation, live reads, machine forwarding, read-only bus behavior |
 | `tests/display/test_apple2_hires.sage` | 31 | Apple II 280x192 HGR mapping, low-seven-bit pixels, validation, holes, isolation, live reads, rendering, machine forwarding, canonical video state, read-only bus behavior |
+| `tests/display/test_apple2_display.sage` | 114 | active page/mode dispatch, mixed text window, text/lo-res/HGR composition, widths, live reads, and read-only behavior |
 | `tests/storage/test_flash.sage` | 21 | flash IDs, WEL, program/read, sector erase, NOR protection, 6502-driven |
 | `tests/storage/test_fs.sage` | 29 | SAGEFS v2 round-trips, limits, persistence, overwrite allocation, BASIC save/load |
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
 | `tests/machine/test_apple2.sage` | 39 | DOS 3.3 verbs, file types, monitor shell, CALL -151, buffers, EXEC, device errors |
-| **Total** | **577** | |
+| **Total** | **706** | |
 
 ## How suites assert
 

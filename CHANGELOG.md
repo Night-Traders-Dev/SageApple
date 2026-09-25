@@ -2,12 +2,18 @@
 
 ## [Unreleased]
 
+### Host Apple II active-display composition
+- `sageapple/apple2_display.sage` — soft-switch-driven page/mode dispatch, 20/24 mixed text window, and live text/lo-res/HGR row composition with a default palette
+- `sageapple/apple2_machine.sage` — display snapshot, row-source, and rendering forwarders
+- `tests/display/test_apple2_display.sage` — 114 composition checks; `tests/boot/test_apple2_boot.sage` adds 15 display integration checks
+- Host suite total after this slice: **22 suites, 706 checks passing**; composition is host-only with **0 B AVR/C and ROM impact**
+
 ### Host Apple II lo-res page projection
 - `sageapple/apple2_lores.sage` — read-only 40x24 projection of Apple II lo-res pages 1 and 2 at `$0400` and `$0800`, with 80 horizontal cells, high/low nibble color decoding, 16-entry palettes, and no framebuffer or bus copy
 - `sageapple/apple2_machine.sage` — shared lo-res view plus `lores_color()` and newline-joined `render_lores()` forwarding
 - `tests/display/test_apple2_lores.sage` — 26 checks for mapping, bounds, all 16 colors, page isolation, holes, live overwrites, dimensions, palette validation, machine forwarding, and read-only bus behavior
 - Host suite total after this slice: **21 suites, 577 checks passing**; the projection is host-only and does not alter AVR/C, Apple2Bus, or ROM generation
-- `assets/SageApple.png` and `assets/SageAppleInfo.png` — refreshed staged Apple II architecture, memory maps, measured budgets, and 21/577 status
+- `assets/SageApple.png` and `assets/SageAppleInfo.png` — refreshed staged Apple II architecture, memory maps, measured budgets, and 22/706 status
 - HGR projection correction — seven contiguous pixels per byte (bits 0–6), with bit 7 reserved as the palette bit
 
 ### Canonical Apple II video soft-switch state

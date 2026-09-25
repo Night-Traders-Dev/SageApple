@@ -1,5 +1,6 @@
 import bus.apple2bus
 import sage6502.cpu
+import sageapple.apple2_display
 import sageapple.apple2_hires
 import sageapple.apple2_lores
 import sageapple.apple2_text
@@ -11,6 +12,7 @@ class Apple2Machine:
         self.text = apple2_text.Apple2TextPage(self.bus)
         self.hires = apple2_hires.Apple2HiresPage(self.bus)
         self.lores = apple2_lores.Apple2LoresPage(self.bus)
+        self.display = apple2_display.Apple2Display(self.bus, self.text, self.lores, self.hires)
         self.booted = false
 
     proc load_rom(self, image):
@@ -61,3 +63,24 @@ class Apple2Machine:
 
     proc video_page(self):
         return self.bus.video_page()
+
+    proc display_page(self):
+        return self.display.page()
+
+    proc display_mode(self):
+        return self.display.mode()
+
+    proc display_mixed(self):
+        return self.display.mixed()
+
+    proc display_row_sources(self):
+        return self.display.row_sources()
+
+    proc display_snapshot(self):
+        return self.display.snapshot()
+
+    proc render_display(self, palette, on_char, off_char):
+        return self.display.render(palette, on_char, off_char)
+
+    proc render_display_default(self):
+        return self.display.render_default()

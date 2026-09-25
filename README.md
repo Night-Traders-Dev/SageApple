@@ -20,10 +20,11 @@ re-implemented in C and runs on the chip over a physical UART.
 - The Apple II compatibility profile includes read-only host projections of
   the 40x24 text pages at `$0400` and `$0800`, with inverse/flash decoding;
   the 40x24 lo-res pages with 80 horizontal color cells and 16-entry palettes;
-  and the 280x192 HGR pages at `$2000` and `$4000`. All read live bus memory
-  without a copied framebuffer, and the lo-res projection has no AVR impact.
-  The Apple II bus also exposes canonical text, mixed, page, and graphics-mode
-  soft-switch state through `video_snapshot()`, `video_mode()`, and
+  the 280x192 HGR pages at `$2000` and `$4000`; and soft-switch-driven active
+  display composition with a 20/24 mixed text window. All read live bus
+  memory without a copied framebuffer, and the host projections have no AVR
+  impact. The Apple II bus exposes canonical text, mixed, page, and
+  graphics-mode state through `video_snapshot()`, `video_mode()`, and
   `video_page()`.
 - The AVR board boots into the classic 6502 monitor (`help dump peek poke
   regs run reset`); that session is a byte-exact transcript check between
@@ -51,7 +52,7 @@ hardware:
 | M13 | Real AVR silicon: C port of the core, PROGMEM opcode table, host-oracle equivalence, verified flash+run on the board |
 | M14 | Apple II software stack: DOS 3.3 command processor, full Applesoft BASIC, host Apple II monitor (`*` dumps/disassembly/go), unified `]` BASIC / `*` monitor shell, SAGEFS v2 with DOS file types |
 
-Host suites: **21 suites, 577 checks passing** — plus the AVR host
+Host suites: **22 suites, 706 checks passing** — plus the AVR host
 equivalence test (`make host-test`).
 
 ## Architecture
@@ -107,7 +108,7 @@ sage tests/machine/test_os.sage  # full end-to-end OS check (24 checks)
 ./sagemake run --test            # scripted verification session (no prompt)
 ```
 
-All 21 suites run the same way; see [docs/tests.md](docs/tests.md).
+All 22 suites run the same way; see [docs/tests.md](docs/tests.md).
 
 ## Hardware
 
@@ -156,10 +157,10 @@ over the physical UART (9,600 baud); `C-a d`/`C-a k` returns to the
 
 ## Test suite
 
-Run any module standalone, or all 21:
+Run any module standalone, or all 22:
 
 ```sh
-for t in tests/*/*.sage; do sage "$t"; done   # 577 checks, all OK
+for t in tests/*/*.sage; do sage "$t"; done   # 706 checks, all OK
 ```
 
 ## Repository layout
