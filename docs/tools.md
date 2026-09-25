@@ -11,6 +11,7 @@ All run with the `sage` interpreter from the repo root.
 | `tools/gen_table.sage` | regenerates the C opcode table from the core |
 | `tools/hex_dump.sage` | dumps `build/boot.bin` for inspection |
 | `tools/applecon.sage` | artistic TUI + shell to connect to SageApple boards |
+| `tools/apple2_screen.sage` | interactive host `a2>` screen shell for the Apple II profile |
 
 ## `avr_boot.sage`
 
@@ -96,6 +97,20 @@ Commands:
 Connection is handed off to `screen` for an interactive serial terminal
 (exits back to the `sage> ` prompt with `C-a d`/`C-a k`). Stale
 detached screen sessions are automatically killed before each connect.
+
+## `apple2_screen.sage`
+
+The host Apple II screen shell boots the staged replacement ROM and exposes
+the active composed display through a deterministic `a2>` prompt:
+
+```sh
+sage-c tools/apple2_screen.sage
+```
+
+Commands include `screen`, `frame`, `state`, `serial`, `events`, `poke`,
+`peek`, `type`, `key`, `run`, and the canonical `text`, `gr`, `hgr`, `mix`,
+`nomix`, `page1`, and `page2` soft-switch verbs. It is host-only and does not
+change the AVR image or ROM.
 
 > **Note:** run AppleCon with the C build (`sage-c`). The self-hosted
 > RISC-V `sage` interpreter is unstable with the animation/shell loop.

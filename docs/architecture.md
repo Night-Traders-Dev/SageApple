@@ -18,7 +18,8 @@ edges:
   expansion ROM windows, soft switches, canonical text/mixed/page/graphics
   state, serial bridge, text/hi-res write events, host-only 40x24
   text-page, 40x24/80-cell lo-res, and 280x192 HGR projections, plus
-  soft-switch-driven active display composition with a mixed text window.
+  soft-switch-driven active display composition with a mixed text window and
+  a host `a2>` screen shell.
 
 The legacy profile boots on the host and the real chip. The reduced Apple II
 profile is intentionally separate and does not yet reproduce the complete
@@ -68,7 +69,7 @@ AVR chip.
 | [docs/os.md](os.md) | OS console, monitor, filesystem, graphics, boot |
 | [docs/avr.md](avr.md) | ATmega328P port, C runtime, flashing |
 | [docs/tools.md](tools.md) | host-side tools (hex, ROM, table generation) |
-| [docs/tests.md](tests.md) | the 22 validation suites and 706 checks |
+| [docs/tests.md](tests.md) | the 23 validation suites and 817 checks |
 
 ## Key design decisions
 
@@ -102,6 +103,9 @@ AVR chip.
 8. **Active display is state-driven.** `Apple2Display` selects the active page
    and mode from the canonical video state and reserves the bottom four rows
    for text when mixed mode is enabled.
+9. **The host screen shell is a consumer, not a bus layer.** `Apple2Shell`
+   exposes the composed display, state, and canonical soft switches through a
+   deterministic `a2>` REPL without adding bus primitives or AVR state.
 
 ## Execution models
 
@@ -144,6 +148,7 @@ the host budget belongs to the emulator state; see [docs/avr.md](avr.md).)
 | `sageapple/apple2_lores.sage` | host-only 40x24 Apple II lo-res projection with 80 horizontal color cells |
 | `sageapple/apple2_hires.sage` | host-only 280x192 Apple II HGR projection |
 | `sageapple/apple2_display.sage` | host-only active page/mode composition and mixed text window |
+| `sageapple/apple2_shell.sage` | host-only a2> screen shell for display, state, switches, memory, and keys |
 | `sageapple/apple2_machine.sage` | Apple II CPU wrapper and forwarded video state API |
 | `devices/*.sage` | UART, SPI master, OLED display, NOR flash, speaker models |
 | `basic/basic.sage` | Applesoft BASIC interpreter (PRINT/LET/GOTO/IF/FOR/INPUT/GOSUB/DEF FN/READ/DATA...) |

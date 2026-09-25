@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **22 SageLang suites: 706 checks**, each
+SageApple is validated by **23 SageLang suites: 817 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -31,12 +31,13 @@ sage tests/boot/test_monitor.sage
 | `tests/display/test_apple2_lores.sage` | 26 | Apple II 40x24/80-cell lo-res mapping, bounds, all 16 colors, palette rendering, validation, holes, isolation, live reads, machine forwarding, read-only bus behavior |
 | `tests/display/test_apple2_hires.sage` | 31 | Apple II 280x192 HGR mapping, low-seven-bit pixels, validation, holes, isolation, live reads, rendering, machine forwarding, canonical video state, read-only bus behavior |
 | `tests/display/test_apple2_display.sage` | 114 | active page/mode dispatch, mixed text window, text/lo-res/HGR composition, widths, live reads, and read-only behavior |
+| `tests/display/test_apple2_shell.sage` | 111 | host a2> screen shell, soft-switch verbs, memory/text commands, frame dimensions, read-only inspection, and repeatability |
 | `tests/storage/test_flash.sage` | 21 | flash IDs, WEL, program/read, sector erase, NOR protection, 6502-driven |
 | `tests/storage/test_fs.sage` | 29 | SAGEFS v2 round-trips, limits, persistence, overwrite allocation, BASIC save/load |
 | `tests/machine/test_speaker.sage` | 12 | speaker model + BASIC/6502 driving |
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
 | `tests/machine/test_apple2.sage` | 39 | DOS 3.3 verbs, file types, monitor shell, CALL -151, buffers, EXEC, device errors |
-| **Total** | **706** | |
+| **Total** | **817** | |
 
 ## How suites assert
 
