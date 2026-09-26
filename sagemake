@@ -370,6 +370,46 @@ def cmd_host_test(args: list[str]) -> None:
     step_ok("C port matches the Sage reference")
 
 
+def cmd_chip_test(args: list[str]) -> None:
+    """Build, flash, verify and exercise the real board end to end."""
+    banner(f"chip-test — {PROJECT_NAME}")
+    if not has_avr_toolchain():
+        step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
+    if not has_host_toolchain():
+        step_fail("make/python3 missing — cannot build or drive the firmware")
+
+    overrides = _flash_args(args)
+    chip_args = []
+    for a in args:
+        if a.startswith("--chip-port="):
+            # two argv entries, not one joined string
+            chip_args.extend(["--port", a[len("--chip-port="):]])
+
+    section("Build")
+    step("make -C avr")
+    run(["make", "-C", "avr"], cwd=ROOT)
+    ok()
+    step_ok("firmware built")
+
+    section("Flash")
+    step("make -C avr flash")
+    run(["make", "-C", "avr", "flash"] + overrides, cwd=ROOT)
+    ok()
+    step_ok("firmware written to the board")
+
+    section("Readback verify")
+    step("make -C avr verify")
+    run(["make", "-C", "avr", "verify"] + overrides, cwd=ROOT)
+    ok()
+    step_ok("flash contents match the build")
+
+    section("Hardware-in-the-loop equivalence")
+    step("make -C avr chip-test")
+    run(["make", "-C", "avr", "chip-test"] + chip_args, cwd=ROOT)
+    ok()
+    step_ok("board transcript is byte-exact with the host oracle")
+
+
 def _flash_args(args: list[str]) -> list[str]:
     overrides = []
     for a in args:
@@ -489,6 +529,7 @@ def main() -> None:
         "avr": cmd_avr,
         "apple2": cmd_apple2,
         "host-test": cmd_host_test,
+        "chip-test": cmd_chip_test,
         "flash": cmd_flash,
         "fuse": cmd_fuse,
         "install": cmd_install,
