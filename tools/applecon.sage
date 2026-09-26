@@ -26,7 +26,7 @@ import sys
 
 let ESC = "\x1b"
 
-let ORANGEPI_HOST = "orangepi@192.168.254.44"
+let ORANGEPI_HOST = "orangepi@192.168.4.34"
 
 # All three boards are on the OrangePi
 let BOARD0_NAME = "og Uno R3"
@@ -34,7 +34,7 @@ let BOARD0_PORT = "/dev/ttyUSB0"
 let BOARD1_NAME = "Nano R3"
 let BOARD1_PORT = "/dev/ttyUSB1"
 let BOARD2_NAME = "2nd Uno R3"
-let BOARD2_PORT = "/dev/ttyUSB2"
+let BOARD2_PORT = "/dev/ttyACM0"
 let BAUD = "9600"
 
 proc sgr(code):
