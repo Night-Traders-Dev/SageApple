@@ -71,7 +71,7 @@ sudo apt-get install gcc-avr avr-libc binutils-avr avrdude
 
 cd avr
 make                                  # -> sageapple.elf / sageapple.hex
-make flash                           # avrdude -c arduino -P /dev/ttyUSB0 -b 115200
+make flash                           # port auto-detected; avrdude -c arduino -b 115200
 # if the chip is fuse-locked to an external clock, use a USBasp first:
 avrdude -p atmega328p -c usbasp -B 3 -U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m
 ```

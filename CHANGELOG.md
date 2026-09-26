@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### AVR startup and hardware-in-the-loop verification
+- `avr/avr.ld` — place `.vectors` at `0x0000` and keep `.init9`, so the hardware interrupt table lands on the chip's real vector addresses and `main()` is actually called; `start.S` retired as redundant with the avr-libc startup
+- Fixed a hard reset once per second: the WDT vector at `0x0018` had been landing inside the 6502 cycle table, so each 1 Hz watchdog tick jumped into data and wiped RAM between monitor commands
+- `avr/chip_test.py` and `make chip-test` — drive the real board and diff its transcript against `avr/host_expected.txt`; the claimed host/chip equivalence is now checkable, and confirmed byte-exact at 335/335 bytes on an ATmega328P
+- `avr/tools_verify.py` and `make verify` — read flash back in a fresh avrdude session and compare payloads byte-for-byte, validating Intel HEX checksums and separating real mismatches from unreachable leftover above the image
+- `avr/Makefile` — serial port auto-detection, `FLASH_RETRIES` around the write-and-verify cycle for flaky clone bootloaders, `make flash-clean` to erase pages the bootloader leaves behind, and `BOOT_START` for the bootloader boundary
+- `sagemake chip-test` — build, flash, read back, and exercise the board in one command
+- `tools/applecon.sage` — board host corrected to `192.168.4.34`; `con 2` now uses `/dev/ttyACM0`, which is what the FIREPHX CDC-ACM chip actually enumerates as
+- Docs refreshed for the current host, port assignments, and monitor transcript
+
 ### Host Apple II screen shell
 - `sageapple/apple2_shell.sage` — deterministic `a2>` REPL for the composed display, canonical soft switches, memory, text, keyboard, run, serial, and event inspection
 - `tools/apple2_screen.sage` — interactive host runner with no file I/O; `sage-c tools/apple2_screen.sage`

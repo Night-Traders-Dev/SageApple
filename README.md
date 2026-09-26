@@ -118,9 +118,12 @@ See [docs/avr.md](docs/avr.md) — the short version:
 ```sh
 cd avr
 make                                    # sageapple.hex (the 6502 emulator)
-make flash DEVICE=/dev/ttyUSB0 BAUD=115200 PROTO=arduino
+make flash                               # auto-detects the board port
+make verify                              # read the chip back, compare to the build
+make chip-test                           # drive the board, diff vs the host oracle
 make host-test                          # host equivalence oracle
 screen /dev/ttyUSB0 9600               # talk to the monitor on the UNO
+./sagemake chip-test                   # build, flash, verify, exercise the board
 ./sagemake apple2                       # reduced Apple II compatibility profile
 sage-c tools/apple2_screen.sage           # interactive host a2> screen shell
 ```
@@ -131,7 +134,7 @@ The board boots straight into the monitor over the physical UART:
 SageApple MonitorMON> help
 Commands: help dump peek poke regs run reset
 MON> regs
-A=00 X=FD Y=11 SP=FD P=68
+A=00 X=FD Y=2C SP=FD P=37
 ```
 
 Fuses (USBasp): `-U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m`
@@ -148,11 +151,11 @@ sage-c tools/applecon.sage            # TUI + shell (use the C build)
 sage> status                          # probe all three OrangePi boards
 sage> con 0                           # og Uno R3   (/dev/ttyUSB0)
 sage> con 1                           # Nano R3     (/dev/ttyUSB1)
-sage> con 2                           # 2nd Uno R3  (/dev/ttyUSB2)
+sage> con 2                           # 2nd Uno R3  (/dev/ttyACM0, needs cdc_acm)
 sage> exit
 ```
 
-All three boards are wired to the OrangePi (192.168.254.44) and reached
+All three boards are wired to the OrangePi (192.168.4.34) and reached
 over SSH. Each `con` hands off to an interactive `screen` serial terminal
 over the physical UART (9,600 baud); `C-a d`/`C-a k` returns to the
 `sage> ` prompt. See [docs/applecon.md](docs/applecon.md).

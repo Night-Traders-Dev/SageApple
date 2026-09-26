@@ -62,6 +62,37 @@ avrdude -p atmega328p -c arduino -P /dev/ttyUSB0 -b 115200 -U flash:w:sageapple.
 avrdude -p atmega328p -c usbasp -B 3 -U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m
 ```
 
+## Verifying on the board
+
+The monitor ROM is generated once and shared by the host emulator and the AVR
+port, so the same command session must come back byte-for-byte from either.
+These targets make that checkable instead of assumed:
+
+```sh
+make flash                # write the image (retries the flaky clone bootloader)
+make verify               # read flash back and compare to the build
+make chip-test            # drive the board, diff against host_expected.txt
+make flash-clean          # also erase pages the bootloader leaves behind
+```
+
+Or all four in one step from the repo root:
+
+```sh
+./sagemake chip-test
+```
+
+`make verify` reads the chip back in a *fresh* avrdude session, because the
+verify built into a write session shares the same link that can drop sync
+mid-transfer. It reports bytes above the image separately: clone bootloaders
+often fail to erase the whole chip, and that leftover is unreachable from the
+reset vector rather than a correctness problem. Pass `--strict` to
+`tools_verify.py` to require a clean chip.
+
+Clone STK500v1 bootloaders are also prone to dropping sync during a long
+write. `make flash` retries the whole write-and-verify cycle
+(`FLASH_RETRIES=4` by default); a single failed avrdude run is not evidence
+that the write failed.
+
 ## Terminal
 
 ```sh

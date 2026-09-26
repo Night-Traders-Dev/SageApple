@@ -7,14 +7,14 @@ off to each board's interactive serial shell.
 
 ## Topology
 
-All three boards are wired to the OrangePi (192.168.254.44) and reached
+All three boards are wired to the OrangePi (192.168.4.34) and reached
 over SSH:
 
 | con | board           | serial port            | USB controller |
 |-----|-----------------|------------------------|----------------|
-| `0` | og Uno R3       | `/dev/ttyUSB0`         | mv-ehci (USB4) |
+| `0` | og Uno R3       | `/dev/ttyUSB0`         | xhci-hcd (USB2) |
 | `1` | Nano R3         | `/dev/ttyUSB1`         | xhci-hcd (USB2) |
-| `2` | 2nd Uno R3      | `/dev/ttyUSB2`         | xhci-hcd (USB2) |
+| `2` | 2nd Uno R3      | `/dev/ttyACM0`         | mv-ehci (USB4) |
 
 > **Note:** The 2nd Uno R3 uses a FIREPHX USB SER (0843:5740) chip
 > that requires the `cdc_acm` kernel module. If the module is not
@@ -37,7 +37,7 @@ Run it from the repo root so `import io`/`import sys` resolve.
 |---------|--------|
 | `sage> con 0` | SSH to the OrangePi and `screen /dev/ttyUSB0 9600` (og Uno R3) |
 | `sage> con 1` | SSH to the OrangePi and `screen /dev/ttyUSB1 9600` (Nano R3) |
-| `sage> con 2` | SSH to the OrangePi and `screen /dev/ttyUSB2 9600` (2nd Uno R3) |
+| `sage> con 2` | SSH to the OrangePi and `screen /dev/ttyACM0 9600` (2nd Uno R3) |
 | `sage> status` | probe each port and show which boards are present |
 | `sage> help` | list the available commands |
 | `sage> exit` | leave AppleCon |
