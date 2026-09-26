@@ -93,6 +93,16 @@ def main():
                     help="settle time after each command")
     ap.add_argument("--timeout", type=float, default=6.0,
                     help="max seconds to wait for the boot banner")
+    ap.add_argument("--banner", default=BANNER,
+                    help="text the firmware prints on boot; pass an empty "
+                         "string to skip waiting for it")
+    ap.add_argument("--terminator", default="\n",
+                    help="line terminator appended to each command; pass an "
+                         "empty string for firmwares that treat every byte as "
+                         "a keypress")
+    ap.add_argument("--post-banner-settle", type=float, default=0.3,
+                    help="seconds to keep reading after the banner appears, "
+                         "to catch any trailing boot output")
     args = ap.parse_args()
 
     try:
@@ -125,26 +135,53 @@ def main():
     try:
         boot_into_application(ser, args.settle)
 
-        print("waiting for the boot banner ...")
+        want = args.banner.encode()
         banner = bytearray()
-        deadline = time.time() + args.timeout
-        while time.time() < deadline and BANNER.encode() not in bytes(banner):
-            try:
-                banner += ser.read(4096)
-            except Exception:
-                pass
+        if want:
+            print("waiting for the boot banner ...")
+            deadline = time.time() + args.timeout
+            while time.time() < deadline and want not in bytes(banner):
+                try:
+                    banner += ser.read(4096)
+                except Exception:
+                    pass
+            if want not in bytes(banner):
+                print("FAIL no %r banner within %.1fs" % (args.banner, args.timeout))
+                print("      got: %r" % bytes(banner))
+                print("      the chip may be stuck in the bootloader, or the image is stale")
+                return 1
+            print("banner   : ok")
+        else:
+            print("capturing boot output for %.1fs ..." % args.settle)
+            end = time.time() + args.settle
+            while time.time() < end:
+                try:
+                    chunk = ser.read(4096)
+                except Exception:
+                    continue
+                if chunk:
+                    banner += chunk
+                else:
+                    break
 
-        if BANNER.encode() not in bytes(banner):
-            print("FAIL no %r banner within %.1fs" % (BANNER, args.timeout))
-            print("      got: %r" % bytes(banner))
-            print("      the chip may be stuck in the bootloader, or the image is stale")
-            return 1
-        print("banner   : ok")
+        # Trailing boot output can arrive in the same burst as the banner or
+        # just after it; give it a moment so it is not attributed to a command.
+        if args.post_banner_settle > 0:
+            end = time.time() + args.post_banner_settle
+            while time.time() < end:
+                try:
+                    chunk = ser.read(4096)
+                except Exception:
+                    continue
+                if not chunk:
+                    break
+                banner += chunk
+                end = time.time() + args.post_banner_settle
 
         captured = bytearray()
         for command in commands:
-            # LF only: the monitor treats a bare CR as an unknown command.
-            ser.write((command + "\n").encode())
+            # LF only for the monitor: a bare CR is an unknown command there.
+            ser.write((command + args.terminator).encode())
             ser.flush()
             time.sleep(args.per_command)
             captured += drain(ser, 1.5)

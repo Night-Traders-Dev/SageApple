@@ -36,6 +36,15 @@ define do_flash
     echo "FLASH FAILED after $(FLASH_RETRIES) attempts on $(DEVICE)"; exit 1
 endef
 
+# $(1) = hex file that was written. Reads the chip back in a *fresh* avrdude
+# session -- the verify inside a write session shares the same link that can
+# drop sync, which is how a stale image survives a "successful" flash.
+# $(2) = scratch file for the readback.
+define do_verify
+	$(AVRDUDE) $(AVRDUDE_FLAGS) -q -U flash:r:$(2):i
+	python3 tools_verify.py $(1) $(2)
+endef
+
 CFLAGS   = -mmcu=$(MC) -DF_CPU=$(B_CPU) -Os -Wall -Wextra -std=gnu11 -fno-strict-aliasing
 ASFLAGS  = -mmcu=$(MC)
 LDFLAGS  = -mmcu=$(MC) -T avr.ld
@@ -51,7 +60,7 @@ APPLE2_HEX = apple2.hex
 APPLE2_HOST = apple2_host_test
 
 .PHONY: apple2 apple2-gen apple2-host apple2-host-test apple2-flash
-.PHONY: verify chip-test flash-clean
+.PHONY: verify chip-test apple2-chip-test flash-clean
 
 all: $(ELF) sageapple.hex
 	$(SIZE) $(ELF)
@@ -93,6 +102,7 @@ apple2-flash: apple2
 
 # Written by `make verify`; excluded from version control by .gitignore.
 READBACK = /tmp/sageapple_readback.hex
+APPLE2_READBACK = /tmp/apple2_readback.hex
 
 # First byte of the bootloader on the clone boards. Nothing below this is the
 # bootloader, so padding an image out to here is safe.
@@ -107,16 +117,28 @@ rom:
 host: rom_host.c host_cmds.txt
 	gcc -O2 -DHOST -o host_test sage6502.c bus.c rom_host.c host_uart.c host_main.c
 
-# Independent check that flash really holds what we just built. avrdude's own
-# verify is part of the same session that can fail mid-transfer, so read the
-# chip back in a fresh session and compare payloads byte-for-byte.
+# Independent check that flash really holds what we just built.
 verify: sageapple.hex
-	$(AVRDUDE) $(AVRDUDE_FLAGS) -q -U flash:r:$(READBACK):i
-	python3 tools_verify.py sageapple.hex $(READBACK)
+	$(call do_verify,sageapple.hex,$(READBACK))
 
-# Drive the real board and diff its transcript against the host oracle.
+# Flash, read back, then drive the board and diff its transcript against the
+# host oracle.
 chip-test: sageapple.hex
+	$(call do_flash,sageapple.hex)
+	$(call do_verify,sageapple.hex,$(READBACK))
 	python3 chip_test.py $(CHIP_TEST_ARGS)
+
+# The same for the reduced Apple II profile. Its boot signature is "A2\r\nHI"
+# rather than a monitor banner, and the only interaction is a keypress, so the
+# oracle is a single command and a configurable banner.
+apple2_expected.txt: apple2-host
+	./$(APPLE2_HOST) --dump > $@
+
+apple2-chip-test: apple2.hex apple2_expected.txt
+	$(call do_flash,$(APPLE2_HEX))
+	$(call do_verify,$(APPLE2_HEX),$(APPLE2_READBACK))
+	python3 chip_test.py --banner=A2 --cmds apple2_cmds.txt \
+	  --expected apple2_expected.txt --terminator= $(CHIP_TEST_ARGS)
 
 # Some clone STK500v1 bootloaders do not erase the whole chip when writing, so a
 # plain flash can leave 0x00 fill or fragments of a previously larger image
@@ -140,4 +162,4 @@ program-fuse:
 	  -U lfuse:w:0xFF:m -U hfuse:w:0xD9:m -U efuse:w:0xFF:m
 
 clean:
-	rm -f *.o $(ELF) *.hex *.lss $(APPLE2_ELF) $(APPLE2_HOST)
+	rm -f *.o $(ELF) *.hex *.lss $(APPLE2_ELF) $(APPLE2_HOST) apple2_expected.txt

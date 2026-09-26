@@ -200,11 +200,24 @@ static int run_banking_checks(void) {
     return failures;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     static const uint8_t signature[] = {
         0x41, 0x32, 0x0D, 0x0A, 0x48, 0x49, 0x0D, 0x0A
     };
     int failures = 0;
+
+    /* --dump emits the canonical serial transcript so the AVR build can be
+       diffed against the host by `make apple2-chip-test`. Feeding the key
+       through host_uart_feed is equivalent to it arriving over the UART. */
+    if (argc > 1 && strcmp(argv[1], "--dump") == 0) {
+        bus_reset();
+        cpu_reset();
+        run_steps(200);
+        host_uart_feed('X');
+        run_steps(2000);
+        fwrite(tx_bytes, 1, tx_length, stdout);
+        return 0;
+    }
 
     bus_reset();
     cpu_reset();

@@ -410,6 +410,33 @@ def cmd_chip_test(args: list[str]) -> None:
     step_ok("board transcript is byte-exact with the host oracle")
 
 
+def cmd_apple2_chip_test(args: list[str]) -> None:
+    """Build, flash, verify and exercise the board on the Apple II profile."""
+    banner(f"apple2-chip-test — {PROJECT_NAME}")
+    if not has_avr_toolchain():
+        step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
+    if not has_host_toolchain():
+        step_fail("make/python3 missing — cannot build or drive the firmware")
+
+    overrides = _flash_args(args)
+    chip_args = []
+    for a in args:
+        if a.startswith("--chip-port="):
+            chip_args.extend(["--port", a[len("--chip-port="):]])
+
+    section("Build the reduced Apple II profile")
+    step("make -C avr apple2")
+    run(["make", "-C", "avr", "apple2"], cwd=ROOT)
+    ok()
+    step_ok("firmware built")
+
+    section("Flash, read back, and drive the board")
+    step("make -C avr apple2-chip-test")
+    run(["make", "-C", "avr", "apple2-chip-test"] + chip_args, cwd=ROOT)
+    ok()
+    step_ok("board transcript is byte-exact with the host oracle")
+
+
 def _flash_args(args: list[str]) -> list[str]:
     overrides = []
     for a in args:
@@ -530,6 +557,7 @@ def main() -> None:
         "apple2": cmd_apple2,
         "host-test": cmd_host_test,
         "chip-test": cmd_chip_test,
+        "apple2-chip-test": cmd_apple2_chip_test,
         "flash": cmd_flash,
         "fuse": cmd_fuse,
         "install": cmd_install,
