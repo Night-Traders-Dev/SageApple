@@ -20,8 +20,14 @@ make            # builds sageapple.elf, sageapple.hex, sageapple.lss
 ```
 
 `avr.ld` defines the MCU memory layout (32KB flash, 2KB SRAM, 1KB EEPROM).
-`start.S` sets the stack pointer, clears `.bss`, copies `.data`, then calls
-`main()`.
+It places `.vectors` at `0x0000` so the hardware interrupt table lands on the
+real vector addresses of the chip (`__vector_6` = WDT at `0x0018`), and it pulls
+in `.init0` through `.init9` so the avr-libc startup runs: stack pointer,
+`.bss` clear, `.data` copy, then `main()`.
+
+Do not move `.vectors` out of `.text` and do not drop `.init9`. A missing
+`.init9` means `main()` is never called; a missing `.vectors` means every
+hardware interrupt jumps into application data instead of a handler.
 
 ## Generating the boot image via Sage (host toolchain)
 

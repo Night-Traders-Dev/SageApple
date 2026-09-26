@@ -21,12 +21,12 @@ CFLAGS   = -mmcu=$(MC) -DF_CPU=$(B_CPU) -Os -Wall -Wextra -std=gnu11 -fno-strict
 ASFLAGS  = -mmcu=$(MC)
 LDFLAGS  = -mmcu=$(MC) -T avr.ld
 
-OBJS     = main.o start.o sage6502.o bus.o rom_avr.o
+OBJS     = main.o sage6502.o bus.o rom_avr.o
 ELF      = sageapple.elf
 SAGE     = sage-c
 HOST_CC  = gcc
 HOST_CFLAGS = -O2 -DHOST -Wall -Wextra -std=gnu11
-APPLE2_OBJS = main.o start.o sage6502.o bus_apple2.o rom_apple2.o
+APPLE2_OBJS = main.o sage6502.o bus_apple2.o rom_apple2.o
 APPLE2_ELF = apple2.elf
 APPLE2_HEX = apple2.hex
 APPLE2_HOST = apple2_host_test

@@ -17,13 +17,13 @@ MEMORY
 
 SECTIONS
 {
-  .vector 0x0000 :
+  .vectors 0x0000 :
   {
     _earliest_start = .;
-    KEEP(*(.vector))
+    KEEP(*(.vectors))
   } > text
 
-  .text 0x4 :
+  .text :
   {
     *(.progmem*)
     KEEP(*(.init0))
@@ -35,6 +35,7 @@ SECTIONS
     KEEP(*(.init6))
     KEEP(*(.init7))
     KEEP(*(.init8))
+    KEEP(*(.init9))
     *(.text)
     *(.text.*)
     _etext = . ;
