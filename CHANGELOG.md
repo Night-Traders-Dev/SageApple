@@ -2,6 +2,41 @@
 
 ## [Unreleased]
 
+### Monitor: load and run a 6502 program
+- `sageapple/monitor.sage` — `load <addr> <hex bytes>` stores a program and `run <addr>` jumps to it, with the monitor supplying the return address so the program's RTS lands back in the command loop. Bare `run` still reports "no user program", so the recorded transcript stays meaningful
+- Accounted for this CPU's `RTS` being `pc = pulled + 1` (the JSR convention, and the C port agrees), so the target is pushed as target-1 and the return address is a NOP placed before the return `JMP`
+- `load` skips the separator between address and data, and the separators between hex pairs; the first version stored nothing, the second stored one byte
+- `load` and `run <addr>` are in the canonical session, so they are covered by the host oracle, the C port replay and the hardware test. Board transcript byte-exact at 397/397 bytes
+- `tests/boot/test_monitor.sage` — 16 checks including the new commands
+
+### Host and chip bus maps reconciled
+- The host maps RAM below `0x0800` and the C/AVR port below `0x400`. The chip cannot offer 2 KB of guest RAM (the 328P has 2 KB of SRAM in total and the emulator needs 1041 B), so the asymmetry is a hardware limit; the shared session moved to `$0300`, which both maps implement
+- The ports disagreed on unmapped reads (`0x00` on the host, `0xFF` on the chip). `avr/bus.c` now matches the host: the two maps may differ in extent but not in value
+
+### Build correctness
+- `rom_avr.o` now depends on the generated `rom.inc`. The pattern rule only saw `rom_avr.c`, so a monitor change rebuilt nothing and flashed a **stale ROM** — the chip kept answering with the previous help text while the host and C oracle had moved on
+- `make rom` and `make build-sage-boot` use `$(SAGE)` and run from the repo root; they invoked the unstable `sage` and ran from `avr/` while the generators write repo-root-relative paths
+- Hardware targets verify after writing, so a stale image from a failed flash cannot read as a passing test
+
+### Apple II console, and what cannot be ported
+- `sageapple/apple2_rom.sage` — the replacement ROM was a fixed script that echoed every key to a hardcoded `$0402`. It is now a line editor: printable keys echo to `$C080` and advance a 40-column cursor, Return starts the next row, and backspace steps back and clears the cell
+- `compiler/asm6502.sage` parses **every** numeric token as hexadecimal via `hext()`, with or without a `$` prefix, so `ADC #40` added 64. Row widths are now `$28`/`$27` and the gotcha is documented
+- Backspace decremented the column but not the pointer, so it blanked the next cell instead of the one it stepped over
+- `tests/display/test_apple2_shell.sage` asserted "the ROM retypes at `$0402`", a test documenting the demo's failure to advance the cursor
+- `docs/avr.md` now records the ceiling with arithmetic: the host 6502 ROM is 32,768 B and the emulator and C runtime 4,990 B, so 37,758 B would be needed against 32,768 B of flash. The display half cannot be ported at all — the chip maps guest RAM only below `$0400`, so every text, lo-res and HGR page is unmapped
+- `avr/chip_test.py` command files expand `\r`, `\n`, `\t`, `\\` and `\xNN`, and a line that is only an escape is no longer dropped as blank
+- Apple II board transcript byte-exact at 14/14 bytes, covering cursor advance, Return and row two
+
+### Sage -> AVR opcodes -> Intel HEX -> flash, actually validated
+- `tools/avr_boot.sage` claimed to demonstrate the path while carrying its own encoders, and both were wrong: its HEX emitter wrote words high byte first, and its `out` encoder truncated to six bits, so `out 0xC5` (UBRR0H) silently became `out 0x05` (PORTB). The boot image was configuring a GPIO pin and writing 'H' to a register it never addressed
+- Rewritten to assemble through the SageLang AVR backend, and it now emits `build/boot.asm` beside the hex so `avr-as` compiles exactly the text that was assembled
+- `make boot-verify` cross-checks against `avr-as` + `avr-ld` (40/40 bytes identical) and `make boot-flash` puts it on the board. The board emitted `H`, so the path is confirmed on silicon
+
+### Hardware test harness
+- `avr/apple2_host_main.c` grows a `--dump` mode that produces the Apple II oracle from the host, so it is derived rather than hand-typed
+- `chip_test.py` grew `--banner`, `--terminator` and `--post-banner-settle` because the two firmware images do not share a protocol: the monitor announces `SageApple Monitor` and terminates with LF, the Apple II ROM announces `A2\r\nHI` and treats every byte as a keypress
+- `make apple2-chip-test` and `sagemake apple2-chip-test`; the readback check is a shared `do_verify` macro
+
 ### AVR startup and hardware-in-the-loop verification
 - `avr/avr.ld` — place `.vectors` at `0x0000` and keep `.init9`, so the hardware interrupt table lands on the chip's real vector addresses and `main()` is actually called; `start.S` retired as redundant with the avr-libc startup
 - Fixed a hard reset once per second: the WDT vector at `0x0018` had been landing inside the 6502 cycle table, so each 1 Hz watchdog tick jumped into data and wiped RAM between monitor commands
