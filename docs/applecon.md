@@ -16,9 +16,45 @@ over SSH:
 | `1` | Nano R3         | `/dev/ttyUSB1`         | xhci-hcd (USB2) |
 | `2` | 2nd Uno R3      | `/dev/ttyACM0`         | mv-ehci (USB4) |
 
-> **Note:** The 2nd Uno R3 uses a FIREPHX USB SER (0843:5740) chip
-> that requires the `cdc_acm` kernel module. If the module is not
-> available, `con 2` will report the port as down.
+> **Note:** The 2nd Uno R3 uses a FIREPHX USB SER (0843:5740) chip that
+> speaks CDC-ACM, so it needs the `cdc_acm` driver. The OrangePi's
+> `6.6.63-ky` kernel does not have it and it cannot be added from userspace.
+> `con 2` therefore always reports down on that kernel. See
+> [Why `con 2` cannot work on this kernel](#why-con-2-cannot-work-on-this-kernel).
+
+### Why `con 2` cannot work on this kernel
+
+The chip enumerates as class 2 / subclass 2 / protocol 1 plus a CDC data
+interface, so nothing but `cdc_acm` will claim it. The running kernel has no
+such driver by any route:
+
+| attempt | result |
+|---|---|
+| `modprobe cdc_acm` | `Module cdc_acm not found in directory /lib/modules/6.6.63-ky` |
+| `CONFIG_CDC_ACM` in `/boot/config-6.6.63-ky` | absent (the config has `CONFIG_USB_SERIAL` with CH341/CP210x, and no CDC ACM at all) |
+| build it from source | no headers: `/lib/modules/6.6.63-ky/build` and `/usr/src` are both empty |
+| `cdc-acm.ko` from Ubuntu `linux-modules-6.8.0-31-generic` | `insmod` returns `Invalid module format` -- its vermagic is `6.8.0-31-generic ...`, the kernel is `6.6.63-ky ...` |
+| force past the vermagic | not possible: `CONFIG_MODULE_FORCE_LOAD` is not set |
+| `usbip` the device to another host | no `usbip` package exists in any configured repository |
+
+`CONFIG_MODVERSIONS` is not set, so symbol CRCs are not the obstacle -- the
+vermagic string is. Loading it would need the *whole* matching 6.8.0-31 kernel,
+and a generic Ubuntu RISC-V kernel is not going to boot this board on the
+vendor DTB and `boot.scr` chain.
+
+The realistic options are therefore:
+
+1. **Use a CH340-class board on this kernel.** These bind `usbserial`, which
+   *is* present, and give `/dev/ttyUSB*`. The Nano on this host works this way.
+2. **Boot a kernel that has `CONFIG_CDC_ACM`.** This needs physical console
+   access to the OrangePi, because a failed boot takes the machine off the
+   network. Do not attempt it over SSH.
+3. **Replace the board's USB-serial bridge** with a CH340, if the board is
+   open to it.
+
+Note that `dmesg` shows the FIREPHX device enumerating and disconnecting
+repeatedly on `mv-ehci`; it is present on the bus, just driverless. That is why
+`lsusb` shows it while no `/dev` node appears.
 
 ## Running
 
