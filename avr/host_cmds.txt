@@ -6,5 +6,7 @@ peek 0000
 dump 0030 0030
 xyz
 run
+load 0300 A9 2A 8D 01 20 60
+run 0300
 reset
 help

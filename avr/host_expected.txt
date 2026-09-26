@@ -1,6 +1,6 @@
 SageApple MonitorMON> help
-Commands: help dump peek poke regs run resetMON> regs
-A=00 X=FD Y=2C SP=FD P=37
+Commands: help dump peek poke regs run reset loadMON> regs
+A=00 X=FD Y=31 SP=FD P=37
 MON> peek 0000
 0000: 00
 MON> poke 0000 42
@@ -13,6 +13,9 @@ MON> xyz
 
 MON> run
 no user program
-MON> reset
+MON> load 0300 A9 2A 8D 01 20 60
+
+MON> run 0300
+*MON> reset
 SageApple MonitorMON> help
-Commands: help dump peek poke regs run resetMON> 
+Commands: help dump peek poke regs run reset loadMON> 

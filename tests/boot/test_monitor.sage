@@ -80,7 +80,28 @@ check(contains(upper(rg), "P="), "regs shows P")
 
 print("== run ==")
 let rrun = run("run")
-check(contains(rrun, "no user program"), "run stub")
+check(contains(rrun, "no user program"), "bare run still reports no user program")
+
+## LDA #$2A / STA $2001 / RTS -- writes '*' out of the UART, then returns to the
+## monitor through the return address the monitor pushed.
+print("== load ==")
+run("load 0300 A9 2A 8D 01 20 60")
+let l1 = run("peek 0300")
+check(contains(upper(l1), "0300: A9"), "load stores the first byte")
+let l2 = run("peek 0303")
+check(contains(upper(l2), "0303: 01"), "load stores a middle byte")
+let l3 = run("peek 0305")
+check(contains(upper(l3), "0305: 60"), "load stores the last byte")
+
+print("== run a loaded program ==")
+let rgo = run("run 0300")
+check(contains(rgo, "*"), "a loaded program writes to the UART")
+check(contains(rgo, "MON> "), "run returns to the monitor prompt")
+
+## After a program has run and returned, the monitor must still be usable.
+print("== monitor still usable after run ==")
+let rafter = run("peek 0300")
+check(contains(upper(rafter), "0300: A9"), "monitor still answers commands after a run")
 
 print("")
 print("Results:", passes, "passed,", failures, "failed")

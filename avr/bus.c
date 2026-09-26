@@ -58,7 +58,11 @@ uint8_t bus_read(uint16_t addr) {
         return MONROM[addr - 0xE000];
 #endif
     }
-    return 0xFF;
+    /* Unmapped reads return 0x00, matching bus/applebus.sage. The chip cannot
+       mirror the host's 2 KB of 6502 RAM (the 328P has 2 KB of SRAM in total
+       and the emulator itself needs over 1 KB), so the two bus maps differ in
+       extent; they must not differ in value. */
+    return 0x00;
 }
 
 void bus_write(uint16_t addr, uint8_t v) {

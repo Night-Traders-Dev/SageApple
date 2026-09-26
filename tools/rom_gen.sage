@@ -107,6 +107,11 @@ command("peek 0000")
 command("dump 0030 0030")
 command("xyz")
 command("run")
+## load a program and run it: LDA #$2A / STA $2001 / RTS writes '*' out
+## $0300 is above the line buffer ($0200) and the stack ($0100), and
+## inside the 1 KB of RAM the chip can actually provide.
+command("load 0300 A9 2A 8D 01 20 60")
+command("run 0300")
 command("reset")
 command("help")
 
