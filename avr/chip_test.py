@@ -73,6 +73,33 @@ def drain(ser, seconds):
     return bytes(buf)
 
 
+def unescape(line):
+    """Expand backslash escapes so control bytes survive a text command file."""
+    out = []
+    i = 0
+    simple = {"r": "\r", "n": "\n", "t": "\t", "0": "\x00", "\\": "\\"}
+    while i < len(line):
+        c = line[i]
+        if c != "\\":
+            out.append(c)
+            i = i + 1
+            continue
+        if i + 1 >= len(line):
+            out.append(c)
+            break
+        nxt = line[i + 1]
+        if nxt in simple:
+            out.append(simple[nxt])
+            i = i + 2
+        elif nxt == "x" and i + 3 < len(line):
+            out.append(chr(int(line[i + 2:i + 4], 16)))
+            i = i + 4
+        else:
+            out.append(c)
+            i = i + 1
+    return "".join(out)
+
+
 def normalise(data):
     """The monitor terminates lines with CRLF; the recorded oracle uses LF."""
     return data.replace(b"\r\n", b"\n")
@@ -125,7 +152,14 @@ def main():
             print("FAIL missing %s file: %s" % (label, path), file=sys.stderr)
             return 2
 
-    commands = [l.rstrip("\n") for l in open(args.cmds) if l.strip()]
+    commands = []
+    for raw in open(args.cmds):
+        line = raw.rstrip("\n")
+        if line == "":
+            continue
+        # A line that is only an escape such as \r is meaningful, so do not
+        # filter on strip() -- that would drop it.
+        commands.append(unescape(line))
     expected = open(args.expected, "rb").read()
 
     print("port     : %s @ %d baud" % (port, BAUD))

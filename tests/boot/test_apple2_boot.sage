@@ -66,6 +66,54 @@ bus.write8(0xC054, 0x00)
 bus.write8(0xC051, 0x00)
 check(machine.display_snapshot() == [1, "text", false] and slice(machine.render_display_default(), 0, 3) == "HIX", "restoring the switches restores the booted text frame")
 
+## ---- console behaviour (cursor, Return, backspace) ---------------------
+proc boot_fresh():
+    let mm = apple2_machine.Apple2Machine()
+    let rr = apple2_rom.build()
+    mm.load_rom(rr)
+    let cc = mm.cpu
+    var k = 0
+    while k < 200:
+        cc.step()
+        k = k + 1
+    return mm
+
+proc type_keys(mm, keys, n):
+    mm.keyboard_input(keys)
+    var k = 0
+    while k < n:
+        mm.cpu.step()
+        k = k + 1
+
+print("== console: the cursor advances across the text page ==")
+let cm = boot_fresh()
+type_keys(cm, "ABC", 2000)
+check(cm.bus.serial_text() == "A2\r\nHI\r\nABC", "printable keys echo in order")
+check(cm.bus.read8(0x0402) == 0xC1, "first key lands at $0402 with the high bit")
+check(cm.bus.read8(0x0403) == 0xC2, "second key lands at $0403")
+check(cm.bus.read8(0x0404) == 0xC3, "third key lands at $0404")
+check(slice(cm.render_text(1, true), 0, 5) == "HIABC", "the text page shows HIABC")
+
+print("== console: Return starts the next 40-column row ==")
+let cm2 = boot_fresh()
+type_keys(cm2, "AB\r", 2000)
+check(cm2.bus.serial_text() == "A2\r\nHI\r\nAB\r\n", "Return echoes a newline")
+check(cm2.bus.read8(0x0402) == 0xC1 and cm2.bus.read8(0x0403) == 0xC2, "keys before Return stay on row one")
+type_keys(cm2, "Z", 2000)
+check(cm2.bus.read8(0x042A) == 0xDA, "the key after Return lands at $042A (row two)")
+
+print("== console: backspace clears the previous cell ==")
+let cm3 = boot_fresh()
+type_keys(cm3, "AB", 2000)
+## chr(127) is a real DEL byte; "\u007f" is not interpreted as one here and
+## would arrive as the literal six characters.
+type_keys(cm3, chr(127), 2000)
+check(cm3.bus.read8(0x0402) == 0xC1, "backspace leaves the earlier key alone")
+check(cm3.bus.read8(0x0403) == 0xA0, "backspace blanks the cell it steps back over")
+check(slice(cm3.render_text(1, true), 0, 3) == "HIA", "the text page reflects the erase")
+type_keys(cm3, "C", 2000)
+check(cm3.bus.read8(0x0403) == 0xC3, "typing after a backspace rewrites the same cell")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:

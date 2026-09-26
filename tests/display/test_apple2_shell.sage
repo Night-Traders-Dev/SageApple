@@ -249,7 +249,10 @@ check(running.machine.serial_text() == "A2\r\nHI\r\nX", "the ROM echoes the key 
 check(slice(running.frame(), 0, 3) == "HIX", "the key reaches the active text page")
 check(running.machine.bus.events[2] == [0x0402, 0xD8], "the keyboard echo records a high-bit text event")
 running.steps = 100
-check(running.key("Y") == 100 and slice(running.frame(), 0, 3) == "HIY", "key honors the configured step budget and the ROM retypes at $0402")
+## The cursor advances, so the second key lands at $0403 rather than overwriting
+## $0402. The old assertion ("the ROM retypes at $0402") documented the demo
+## limitation that this console work removed.
+check(running.key("Y") == 100 and slice(running.frame(), 0, 4) == "HIXY", "key honors the configured step budget and the cursor advances to $0403")
 check(running.run() == 100, "run without a count uses the step budget")
 check(running.run(0) == 100, "run with a zero count uses the step budget")
 check(running.run(10) == 10, "run honors an explicit step count")

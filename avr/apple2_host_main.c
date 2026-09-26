@@ -213,7 +213,15 @@ int main(int argc, char **argv) {
         bus_reset();
         cpu_reset();
         run_steps(200);
-        host_uart_feed('X');
+        host_uart_feed('A');
+        run_steps(2000);
+        host_uart_feed('B');
+        run_steps(2000);
+        host_uart_feed('C');
+        run_steps(2000);
+        host_uart_feed('\r');
+        run_steps(2000);
+        host_uart_feed('Z');
         run_steps(2000);
         fwrite(tx_bytes, 1, tx_length, stdout);
         return 0;

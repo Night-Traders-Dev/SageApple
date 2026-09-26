@@ -42,7 +42,9 @@ avr/
 | `$2001` | `UDR0` (RX read / TX write) |
 | `$E000-$FFFF` | `MONROM[8192]` in flash PROGMEM (via `pgm_read_byte`) |
 
-Everything else reads `0xFF` and ignores writes.
+Everything else is unmapped. Unmapped reads return `0x00`, matching
+`bus/applebus.sage`; the two bus maps differ in extent but must not differ in
+value, because an equivalence test cannot tell them apart otherwise.
 
 ## Reduced Apple II compatibility profile
 
@@ -57,6 +59,47 @@ make apple2-flash DEVICE=/dev/ttyACM0 BAUD=115200 PROTO=arduino
 The host profile uses a 48 KiB RAM view, a strict 12 KiB ROM at `$D000-$FFFF`, Apple soft switches at `$C000`, `$C010`, `$C030`, `$C050-$C057`, and `$C300-$C30B`, plus a serial bridge at `$C080/$C081`. `$C000` holds the stable keyboard latch, while `$C010` reads and writes acknowledge it and advance host-queued keys in order. The language-card model provides two 4 KiB `$D000` banks and shared `$E000-$F7FF` RAM; the host bus also provides strict 256-byte slot ROMs and a 2 KiB expansion ROM. Text/lo-res and hi-res writes are recorded as ordered events instead of allocating a framebuffer. The 40x24 text-page projection in `sageapple/apple2_text.sage`, the 40x24/80-cell lo-res projection in `sageapple/apple2_lores.sage`, the 280x192 HGR projection in `sageapple/apple2_hires.sage`, active-display composition in `sageapple/apple2_display.sage`, and the host screen shell in `sageapple/apple2_shell.sage` are host-only, read the live bus without a copied framebuffer, and are not part of the AVR image or ROM generation. The host-only display slices therefore have no AVR/C or ROM impact. `sageapple/apple2_rom.sage` builds the redistributable replacement ROM; Apple ROM binaries are not included. The reduced AVR bus mirrors text, mixed, page2, and hires in one packed byte, applies `$C050-$C057` on both reads and writes, and exposes it through `bus_video_state()`; it retains the existing video latch arrays and write-event behavior without a FIFO, framebuffer, or timing model.
 
 The Uno profile uses 1 KiB of guest RAM, a 12 KiB replacement ROM, the same soft switches, and the serial bridge. A guest `$C010` read polls one UART byte when no key is pending, encodes it as an Apple key, and acknowledges the latch; there is no keyboard FIFO or extra SRAM queue. `$C080` and `$C081` remain available for direct serial use. Its language-card implementation is intentionally reduced to 512 bytes of backing storage covering 128 bytes per `$D000` bank and `$E000-$E1FF`; it does not provide full 48 KiB RAM, video RAM, Disk II, complete slot hardware, or cycle-level NTSC timing.
+
+### What cannot be ported, and why
+
+The host runs a 32 KiB 6502 ROM built from `dos.sage`, `basic.sage`, `os.sage`,
+`monitor.sage` and friends. That stack does not fit on the chip, and the
+arithmetic is not close:
+
+| quantity | bytes |
+|---|---|
+| ATmega328P flash | 32,768 |
+| `apple2.elf` today (emulator + C runtime + 12 KiB ROM) | 17,278 |
+| of which the 6502 ROM | 12,288 |
+| emulator and C runtime | 4,990 |
+| free flash for more ROM | 15,490 |
+| host 6502 ROM, as built | 32,768 |
+| 32,768 ROM + 4,990 emulator | 37,758 — **5,000 over budget** |
+
+So a full DOS 3.3 plus Applesoft port is impossible on this part even before
+counting anything else. Applesoft alone is close to the whole remaining budget,
+so a partial port is conceivable but is a large piece of work with no guarantee.
+
+The display half cannot be ported at all. A 40x24 text page alone is 960 bytes,
+and the HGR pages want 8 KiB more, while the chip's bus maps guest RAM only
+below `$0400`. **Every text, lo-res and HGR page is therefore unmapped on the
+chip**, and the ROM's writes to `$0400` are silently dropped. The host-side
+projections in `apple2_text.sage`, `apple2_lores.sage` and `apple2_hires.sage`
+read the host bus and have no chip counterpart.
+
+What the chip *can* do is run ROM-resident 6502 with a serial console and about
+1 KB of RAM. The replacement ROM is built for exactly that, and the console
+loop in `apple2_rom.sage` is the whole user interface on the chip: printable
+keys echo to `$C080` and advance a 40-column cursor, Return starts the next row,
+and backspace steps back and clears the cell.
+
+### The assembler takes hex only
+
+`compiler/asm6502.sage` parses every numeric token with `hext()`, which reads
+hexadecimal whether or not the literal is written with a `$` prefix. `ADC #40`
+adds 64, not 40, and `LDA #39` yields 57. Always write these as `$28` and `$27`.
+A row of mistyped widths here is a silent, plausible-looking bug: the console
+jumped 64 bytes per line instead of 40 and looked almost right.
 
 ### SRAM budget juggling
 
