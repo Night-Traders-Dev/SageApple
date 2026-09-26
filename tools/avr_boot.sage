@@ -1,80 +1,65 @@
 #########################################################################
-## SageApple — AVR boot image generator (Milestone 4)
+## SageApple — AVR boot image generator (Milestone M4)
 ##
-## Demonstrates the toolchain path: Sage -> AVR opcodes -> Intel HEX -> flash.
-## Self-contained: encodes a minimal ATmega328P UART boot that writes
-## "H" out the serial port, then loops, and emits an Intel HEX image.
+## Demonstrates the toolchain path: SageLang -> AVR opcodes -> Intel HEX -> flash.
+## Builds a minimal ATmega328P UART boot that writes "H" out of the serial
+## port and then spins, and emits build/boot.hex.
 ##
-## Run:  sage tools/avr_boot.sage
+## This deliberately goes through the SageLang AVR backend
+## (core/boards/AVR) rather than hand-rolled encoders. It used to carry its own
+## copy, and both copies were wrong in ways the backend was not:
+##
+##   * the Intel HEX emitter wrote every word high byte first, so the image
+##     decoded as different instructions entirely;
+##   * USART0 registers live at data addresses 0x00C0-0x00C6, which are outside
+##     the 0x00-0x3F I/O window that `in`/`out` can reach. An `out` encoder given
+##     0xC5 silently emitted `out 0x05` -- PORTB, not UBRR0H.
+##
+## `make -C avr boot-verify` cross-checks the result against avr-as and avr-ld
+## byte for byte, and `make -C avr boot-flash` puts it on the board.
+##
+## Run:  sage -I ../SageLang/core/boards/AVR tools/avr_boot.sage
 #########################################################################
 
-# ---- minimal AVR encoders -------------------------------------------
-proc enc_ldi(rd, k):
-    return 0xE000 | ((rd & 0x0F) << 4) | ((k & 0xF0) << 4) | (k & 0x0F)
-
-proc enc_out(a, rr):
-    return 0xB800 | ((rr & 0x1F) << 4) | (((a & 0x30) << 5) | (a & 0x0F))
-
-proc enc_in(rd, a):
-    return 0xB000 | ((rd & 0x1F) << 4) | (((a & 0x30) << 5) | (a & 0x0F))
-
-proc enc_rjmp(rel):
-    return 0xC000 | (rel & 0x0FFF)
-
-# ---- Intel HEX emitter ---------------------------------------------
-proc hex2(v):
-    let digs = "0123456789abcdef"
-    return digs[(v >> 4) & 0xF] + digs[v & 0xF]
-
-proc emit_hex(words):
-    let out = []
-    var base = 0
-    var i = 0
-    let n = len(words)
-    while i < n:
-        let w = words[i]
-        let rec = ":02" + hex2((base >> 8) & 0xFF) + hex2(base & 0xFF) + "00"
-        rec = rec + hex2((w >> 8) & 0xFF) + hex2(w & 0xFF)
-        let ck = 0x02 + ((base >> 8) & 0xFF) + (base & 0xFF) + 0x00
-        ck = ck + ((w >> 8) & 0xFF) + (w & 0xFF)
-        rec = rec + hex2((0 - ck) & 0xFF)
-        push(out, rec)
-        base = base + 2
-        i = i + 1
-    push(out, ":00000001FF")
-    var s = ""
-    var j = 0
-    let m = len(out)
-    while j < m:
-        if j > 0:
-            s = s + "\n"
-        s = s + out[j]
-        j = j + 1
-    return s
-
-# ATmega328P I/O addresses (AVR I/O space, direct 0x00..0x3F window)
-#   UCSR0A=0xC0 UCSR0B=0xC1 UCSR0C=0xC2 UBRR0L=0xC4 UBRR0H=0xC5 UDR0=0xC6
-proc build_boot():
-    let words = []
-    push(words, enc_ldi(16, 0x00))     # UBRRH = 0
-    push(words, enc_out(0xC5, 16))
-    push(words, enc_ldi(16, 103))      # 16MHz / 16 / 9600 - 1 = 103
-    push(words, enc_out(0xC4, 16))
-    push(words, enc_ldi(16, 0x18))     # RXEN0 | TXEN0
-    push(words, enc_out(0xC1, 16))
-    push(words, enc_ldi(16, 0x06))     # 8 data bits, 1 stop, no parity
-    push(words, enc_out(0xC2, 16))
-    push(words, enc_ldi(16, 0x48))     # 'H'
-    push(words, enc_out(0xC6, 16))     # UDR0 = 'H'
-    push(words, enc_rjmp(0))           # infinite loop
-    return words
-
+import avr_assembler
+import avr_hex
 import io
-var boot = build_boot()
-let hex_txt = emit_hex(boot)
-print("AVR boot HEX:")
-print(hex_txt)
-if io.mkdir("build") == false:
+
+let _BOOT_SRC = [
+"; ATmega328P UART boot: write one 'H' out of the serial port, then spin.",
+"; USART0 sits at data addresses 0x00C0-0x00C6, outside the 0x00-0x3F I/O",
+"; window that in/out can reach, so these need sts and lds.",
+"    ldi r16, 0x00",
+"    sts 0x00C5, r16          ; UBRR0H = 0",
+"    ldi r16, 0x67",
+"    sts 0x00C4, r16          ; UBRR0L = 103 -> 9600 baud at 16 MHz",
+"    ldi r16, 0x18",
+"    sts 0x00C1, r16          ; UCSR0B = RXEN0 | TXEN0",
+"    ldi r16, 0x06",
+"    sts 0x00C2, r16          ; UCSR0C = 8 data bits, 1 stop, no parity",
+"    ldi r16, 0x48            ; 'H'",
+"txwait:",
+"    lds r17, 0x00C0          ; UCSR0A",
+"    sbrs r17, 5              ; UDRE0 set means the data register is free",
+"    rjmp txwait",
+"    sts 0x00C6, r16          ; UDR0 = 'H'",
+"done:",
+"    rjmp done",
+]
+
+proc main():
+    ## assemble() takes source text, not a list of lines.
+    let src = join(_BOOT_SRC, "\n")
+    let words = avr_assembler.assemble(src)
+    let hex_txt = avr_hex.emit_hex(words, 0)
+    print("word count:", len(words))
+    print(hex_txt)
     io.mkdir("build")
-io.writefile("build/boot.hex", hex_txt)
-print("wrote build/boot.hex")
+    io.writefile("build/boot.hex", hex_txt)
+    ## Also write the exact source that was assembled, so `make boot-verify`
+    ## can hand the same text to avr-as instead of keeping a second copy that
+    ## could drift.
+    io.writefile("build/boot.asm", src + "\n")
+    print("wrote build/boot.hex and build/boot.asm")
+
+main()

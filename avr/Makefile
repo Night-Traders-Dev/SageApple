@@ -52,6 +52,11 @@ LDFLAGS  = -mmcu=$(MC) -T avr.ld
 OBJS     = main.o sage6502.o bus.o rom_avr.o
 ELF      = sageapple.elf
 SAGE     = sage-c
+
+# The SageLang AVR backend (avr_assembler / avr_hex) that tools/avr_boot.sage
+# uses to prove the Sage -> AVR opcodes -> Intel HEX path. Override if your
+# SageLang checkout is elsewhere.
+SAGELANG_AVR ?= ../SageLang/core/boards/AVR
 HOST_CC  = gcc
 HOST_CFLAGS = -O2 -DHOST -Wall -Wextra -std=gnu11
 APPLE2_OBJS = main.o sage6502.o bus_apple2.o rom_apple2.o
@@ -60,7 +65,7 @@ APPLE2_HEX = apple2.hex
 APPLE2_HOST = apple2_host_test
 
 .PHONY: apple2 apple2-gen apple2-host apple2-host-test apple2-flash
-.PHONY: verify chip-test apple2-chip-test flash-clean
+.PHONY: verify chip-test apple2-chip-test flash-clean boot-verify boot-flash
 
 all: $(ELF) sageapple.hex
 	$(SIZE) $(ELF)
@@ -113,8 +118,21 @@ APPLE2_READBACK = /tmp/apple2_readback.hex
 # bootloader, so padding an image out to here is safe.
 BOOT_START ?= 0x7E00
 
+# Regenerate build/boot.hex and the build/boot.asm it was assembled from.
 build-sage-boot:
-	cd .. && $(SAGE) tools/avr_boot.sage
+	cd .. && $(SAGE) -I $(SAGELANG_AVR) tools/avr_boot.sage
+
+# Cross-check the SageLang-assembled image against GNU as/ld. The tool writes
+# the source it assembled, so avr-as compiles exactly the same text.
+boot-verify: build-sage-boot
+	avr-as -mmcu=$(MC) ../build/boot.asm -o ../build/boot.o
+	avr-ld -m avr5 -Ttext 0x0 ../build/boot.o -o ../build/boot.elf
+	$(OBJCOPY) -O ihex -R .eeprom ../build/boot.elf ../build/boot_ref.hex
+	python3 tools_verify.py ../build/boot.hex ../build/boot_ref.hex
+
+# Put the SageLang-generated boot image on the board.
+boot-flash: build-sage-boot
+	$(call do_flash,../build/boot.hex)
 
 # The generator writes avr/rom.inc, avr/rom_host.c and avr/host_expected.txt
 # using repo-root-relative paths, so it has to run from the repo root. It also
@@ -172,3 +190,5 @@ program-fuse:
 
 clean:
 	rm -f *.o $(ELF) *.hex *.lss $(APPLE2_ELF) $(APPLE2_HOST) apple2_expected.txt
+	rm -f ../build/boot.hex ../build/boot.asm ../build/boot.o \
+	      ../build/boot.elf ../build/boot_ref.hex
