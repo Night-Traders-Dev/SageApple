@@ -24,6 +24,24 @@ PROTO    = arduino
 # avrdude run failing is not evidence the write failed. Retry before giving up.
 FLASH_RETRIES ?= 4
 
+# They also fail to erase the whole chip: a plain write leaves fragments of a
+# previously larger image above the new one, so the chip does not match the
+# build and a peek above the image returns stale bytes. Padding the image out
+# to the bootloader makes avrdude touch every page below it, which erases them.
+# Costs a few seconds at 115200 baud, which is worth it for a predictable chip.
+# Set FLASH_CLEAR=0 for the fast path that writes only the image.
+FLASH_CLEAR ?= 1
+
+# The image actually written. It is used as a *prerequisite* as well as the
+# avrdude argument, so make rebuilds it when the ELF changes.
+ifeq ($(FLASH_CLEAR),1)
+SAGEAPPLE_FLASH_IMAGE = sageapple_padded.hex
+APPLE2_FLASH_IMAGE    = apple2_padded.hex
+else
+SAGEAPPLE_FLASH_IMAGE = sageapple.hex
+APPLE2_FLASH_IMAGE    = apple2.hex
+endif
+
 AVRDUDE_FLAGS = -p $(MC) -c $(PROTO) -P $(DEVICE) -b $(BAUD)
 
 # $(1) = hex file to write. Retries the whole write-and-verify cycle.
@@ -107,8 +125,8 @@ apple2-host: apple2-gen
 apple2-host-test: apple2-host
 	./$(APPLE2_HOST)
 
-apple2-flash: apple2
-	$(call do_flash,$(APPLE2_HEX))
+apple2-flash: $(APPLE2_FLASH_IMAGE)
+	$(call do_flash,$(APPLE2_FLASH_IMAGE))
 
 # Written by `make verify`; excluded from version control by .gitignore.
 READBACK = /tmp/sageapple_readback.hex
@@ -150,8 +168,8 @@ verify: sageapple.hex
 
 # Flash, read back, then drive the board and diff its transcript against the
 # host oracle.
-chip-test: sageapple.hex
-	$(call do_flash,sageapple.hex)
+chip-test: $(SAGEAPPLE_FLASH_IMAGE)
+	$(call do_flash,$(SAGEAPPLE_FLASH_IMAGE))
 	$(call do_verify,sageapple.hex,$(READBACK))
 	python3 chip_test.py $(CHIP_TEST_ARGS)
 
@@ -161,8 +179,8 @@ chip-test: sageapple.hex
 apple2_expected.txt: apple2-host
 	./$(APPLE2_HOST) --dump > $@
 
-apple2-chip-test: apple2.hex apple2_expected.txt
-	$(call do_flash,$(APPLE2_HEX))
+apple2-chip-test: $(APPLE2_FLASH_IMAGE) apple2_expected.txt
+	$(call do_flash,$(APPLE2_FLASH_IMAGE))
 	$(call do_verify,$(APPLE2_HEX),$(APPLE2_READBACK))
 	python3 chip_test.py --banner=A2 --cmds apple2_cmds.txt \
 	  --expected apple2_expected.txt --terminator= $(CHIP_TEST_ARGS)
@@ -171,7 +189,12 @@ apple2-chip-test: apple2.hex apple2_expected.txt
 # plain flash can leave 0x00 fill or fragments of a previously larger image
 # above the new one. Padding the image out to the bootloader makes avrdude
 # touch every page below it, which erases them.
+# Explicit rules, not a %.padded.hex pattern: a pattern rule would ask for
+# sageapple_padded.elf, find nothing, and silently reuse a stale image.
 sageapple_padded.hex: sageapple.elf
+	$(OBJCOPY) --gap-fill 0xff --pad-to $(BOOT_START) -O ihex -R .eeprom $< $@
+
+apple2_padded.hex: apple2.elf
 	$(OBJCOPY) --gap-fill 0xff --pad-to $(BOOT_START) -O ihex -R .eeprom $< $@
 
 flash-clean: sageapple_padded.hex
@@ -181,8 +204,8 @@ host-test: host
 	./host_test host_cmds.txt > host_out.txt
 	diff host_out.txt host_expected.txt && echo "HOST EQUIVALENCE OK"
 
-flash: sageapple.hex
-	$(call do_flash,sageapple.hex)
+flash: $(SAGEAPPLE_FLASH_IMAGE)
+	$(call do_flash,$(SAGEAPPLE_FLASH_IMAGE))
 
 program-fuse:
 	$(AVRDUDE) -p $(MC) -c $(PROTO) -P $(DEVICE) -b $(BAUD) \
@@ -190,5 +213,6 @@ program-fuse:
 
 clean:
 	rm -f *.o $(ELF) *.hex *.lss $(APPLE2_ELF) $(APPLE2_HOST) apple2_expected.txt
+	rm -f sageapple_padded.hex apple2_padded.hex
 	rm -f ../build/boot.hex ../build/boot.asm ../build/boot.o \
 	      ../build/boot.elf ../build/boot_ref.hex

@@ -69,11 +69,27 @@ port, so the same command session must come back byte-for-byte from either.
 These targets make that checkable instead of assumed:
 
 ```sh
-make flash                # write the image (retries the flaky clone bootloader)
+make flash                # write the image, clearing pages below the bootloader
 make verify               # read flash back and compare to the build
 make chip-test            # drive the board, diff against host_expected.txt
-make flash-clean          # also erase pages the bootloader leaves behind
+make flash FLASH_CLEAR=0  # fast path: write only the image, leave the rest
 ```
+
+`make flash` pads the image out to the bootloader before writing, so every page
+below it is touched and therefore erased. This costs about ten seconds at
+115200 baud and is the default because it makes the chip state predictable:
+without it a `peek` above the image returns fragments of whatever was flashed
+before, and `tools_verify.py --strict` can never pass. `FLASH_CLEAR=0` skips the
+padding when you only care about speed.
+
+That padding is a derived artifact and it *will* go stale if the build rule is
+wrong, and a stale padded image is written to the board without complaint. It
+happened once: a `%.padded.hex: %.elf` pattern rule matches the whole stem, so
+it looked for `sageapple_padded.elf`, built nothing, and the previous file was
+used as-is -- and the second time, `flash` named the padded file without
+depending on it, so make never rebuilt it at all. `make verify` caught both
+times, because it compares the chip against the *unpadded* hex. The rules are
+now explicit and the image is a real prerequisite.
 
 Or all four in one step from the repo root:
 
