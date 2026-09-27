@@ -171,7 +171,9 @@ verify: sageapple.hex
 chip-test: $(SAGEAPPLE_FLASH_IMAGE)
 	$(call do_flash,$(SAGEAPPLE_FLASH_IMAGE))
 	$(call do_verify,sageapple.hex,$(READBACK))
-	python3 chip_test.py $(CHIP_TEST_ARGS)
+# --port is not optional here: it must be the same DEVICE avrdude just
+# wrote, or the transcript gets read off whichever board guessed first.
+	python3 chip_test.py --port $(DEVICE) $(CHIP_TEST_ARGS)
 
 # The same for the reduced Apple II profile. Its boot signature is "A2\r\nHI"
 # rather than a monitor banner, and the only interaction is a keypress, so the
@@ -182,7 +184,7 @@ apple2_expected.txt: apple2-host
 apple2-chip-test: $(APPLE2_FLASH_IMAGE) apple2_expected.txt
 	$(call do_flash,$(APPLE2_FLASH_IMAGE))
 	$(call do_verify,$(APPLE2_HEX),$(APPLE2_READBACK))
-	python3 chip_test.py --banner=A2 --cmds apple2_cmds.txt \
+	python3 chip_test.py --port $(DEVICE) --banner=A2 --cmds apple2_cmds.txt \
 	  --expected apple2_expected.txt --terminator= $(CHIP_TEST_ARGS)
 
 # Some clone STK500v1 bootloaders do not erase the whole chip when writing, so a

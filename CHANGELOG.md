@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### The FIREPHX clone works: build `cdc_acm` from the staged headers
+- The 2nd Uno R3 (FIREPHX 0843:5740) is usable on `6.6.63-ky`. The previous conclusion that it was impossible was wrong on a checkable fact: the vendor headers are shipped as a `.deb` **staged but not installed** in `/opt`. Installing it provides `/lib/modules/6.6.63-ky/build` with `Module.symvers` and prebuilt `scripts/`, and its `kernel.release` is `6.6.63-ky`, so modules built against it carry the running kernel's exact vermagic
+- A headers package has no driver source, so `cdc-acm.c` comes from the exact upstream `v6.6.63` tag and builds as a single-file out-of-tree module with no other dependencies. It loads, binds the device, and the board answers avrdude at 115200 with signature `0x1e950f`
+- Installed to `/lib/modules/$(uname -r)/extra/` with `depmod -a` and `/etc/modules-load.d/cdc-acm.conf`, so the unblock survives a reboot; verified by cycling the installed module through `modprobe -r` / `modprobe`
+- `tools/applecon.sage` now reports port 2 (`/dev/ttyACM0`) as OK and `con 2` connects. Every one of the three images is verified byte-exact on the clone as well as the Nano: monitor 397/397, Apple II 14/14, and the SageLang-generated boot image emits `H`
+- `docs/applecon.md` records the procedure, and the two tempting dead ends with their actual error messages: a `linux-modules-6.8.0-31-generic` `cdc-acm.ko` is `Invalid module format` (`CONFIG_MODULE_FORCE_LOAD` unset, so vermagic cannot be bypassed), and there is no `usbip` package in any configured repo
+
+### `make chip-test DEVICE=...` could test the wrong board
+- `chip_test.py` re-guessed the serial port for itself, so `make chip-test DEVICE=/dev/ttyACM0` flashed the clone and then read the "transcript" off the Nano. The flash passed, the transcript passed, and the two referred to different hardware
+- Both recipes now pass `--port $(DEVICE)`, so the port tested is the port written. `CHIP_TEST_ARGS` still wins if a caller deliberately overrides it
+
 ### Monitor: load and run a 6502 program
 - `sageapple/monitor.sage` — `load <addr> <hex bytes>` stores a program and `run <addr>` jumps to it, with the monitor supplying the return address so the program's RTS lands back in the command loop. Bare `run` still reports "no user program", so the recorded transcript stays meaningful
 - Accounted for this CPU's `RTS` being `pc = pulled + 1` (the JSR convention, and the C port agrees), so the target is pushed as target-1 and the return address is a NOP placed before the return `JMP`

@@ -18,43 +18,69 @@ over SSH:
 
 > **Note:** The 2nd Uno R3 uses a FIREPHX USB SER (0843:5740) chip that
 > speaks CDC-ACM, so it needs the `cdc_acm` driver. The OrangePi's
-> `6.6.63-ky` kernel does not have it and it cannot be added from userspace.
-> `con 2` therefore always reports down on that kernel. See
-> [Why `con 2` cannot work on this kernel](#why-con-2-cannot-work-on-this-kernel).
+> `6.6.63-ky` kernel ships without it, but it can be built and installed from
+> the vendor headers -- see
+> [Enabling `cdc_acm`](#enabling-cdc_acm). `con 2` is therefore usable on this
+> kernel now, as long as the module is loaded.
 
-### Why `con 2` cannot work on this kernel
+### Enabling `cdc_acm`
 
 The chip enumerates as class 2 / subclass 2 / protocol 1 plus a CDC data
-interface, so nothing but `cdc_acm` will claim it. The running kernel has no
-such driver by any route:
+interface, so nothing but `cdc_acm` will claim it, and `usbserial` will not. The
+kernel config has `CONFIG_USB_SERIAL` with CH341/CP210x and no CDC ACM at all,
+so the driver has to come from a module.
 
-| attempt | result |
-|---|---|
-| `modprobe cdc_acm` | `Module cdc_acm not found in directory /lib/modules/6.6.63-ky` |
-| `CONFIG_CDC_ACM` in `/boot/config-6.6.63-ky` | absent (the config has `CONFIG_USB_SERIAL` with CH341/CP210x, and no CDC ACM at all) |
-| build it from source | no headers: `/lib/modules/6.6.63-ky/build` and `/usr/src` are both empty |
-| `cdc-acm.ko` from Ubuntu `linux-modules-6.8.0-31-generic` | `insmod` returns `Invalid module format` -- its vermagic is `6.8.0-31-generic ...`, the kernel is `6.6.63-ky ...` |
-| force past the vermagic | not possible: `CONFIG_MODULE_FORCE_LOAD` is not set |
-| `usbip` the device to another host | no `usbip` package exists in any configured repository |
+The vendor ships the matching headers as a `.deb` that is **not installed by
+default** -- it is staged in `/opt`:
 
-`CONFIG_MODVERSIONS` is not set, so symbol CRCs are not the obstacle -- the
-vermagic string is. Loading it would need the *whole* matching 6.8.0-31 kernel,
-and a generic Ubuntu RISC-V kernel is not going to boot this board on the
-vendor DTB and `boot.scr` chain.
+```console
+# ls -la /opt/linux-headers-current-ky_1.0.0_riscv64.deb
+dpkg -i /opt/linux-headers-current-ky_1.0.0_riscv64.deb
+```
 
-The realistic options are therefore:
+That package supplies `/lib/modules/6.6.63-ky/build` with `Module.symvers` and
+prebuilt `scripts/`, and its `include/config/kernel.release` is `6.6.63-ky`, so
+a module built against it gets the running kernel's vermagic to the letter:
 
-1. **Use a CH340-class board on this kernel.** These bind `usbserial`, which
-   *is* present, and give `/dev/ttyUSB*`. The Nano on this host works this way.
-2. **Boot a kernel that has `CONFIG_CDC_ACM`.** This needs physical console
-   access to the OrangePi, because a failed boot takes the machine off the
-   network. Do not attempt it over SSH.
-3. **Replace the board's USB-serial bridge** with a CH340, if the board is
-   open to it.
+```
+vermagic: 6.6.63-ky SMP preempt mod_unload riscv
+```
 
-Note that `dmesg` shows the FIREPHX device enumerating and disconnecting
-repeatedly on `mv-ehci`; it is present on the bus, just driverless. That is why
-`lsusb` shows it while no `/dev` node appears.
+A headers package has no driver source, so take `cdc-acm.c` from the exact
+upstream tag and build it as a single-file out-of-tree module:
+
+```console
+curl -O https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.6.63.tar.xz
+tar -xJf linux-6.6.63.tar.xz --wildcards 'linux-6.6.63/drivers/usb/class/cdc-acm*'
+mkdir -p /tmp/cdcacm-build && cd /tmp/cdcacm-build
+cp /tmp/linux-6.6.63/drivers/usb/class/cdc-acm.{c,h} .
+printf 'obj-m += cdc-acm.o\n' > Makefile
+make -C /lib/modules/6.6.63-ky/build M=/tmp/cdcacm-build modules
+```
+
+To make it survive a reboot, install it where `depmod` can find it and ask for
+it at boot:
+
+```console
+install -m 0644 /tmp/cdcacm-build/cdc-acm.ko /lib/modules/$(uname -r)/extra/
+depmod -a $(uname -r)
+printf 'cdc_acm\n' > /etc/modules-load.d/cdc-acm.conf
+modprobe cdc_acm
+```
+
+`/dev/ttyACM0` then appears, and the board talks to avrdude at 115200 like any
+other Uno, reporting signature `0x1e950f`.
+
+Two things this avoids, worth recording because they are the obvious next
+attempt and both fail:
+
+- **A module from another kernel.** `cdc-acm.ko` out of Ubuntu
+  `linux-modules-6.8.0-31-generic` returns `Invalid module format` -- its
+  vermagic is `6.8.0-31-generic ...`. `CONFIG_MODULE_FORCE_LOAD` is not set, so
+  the string cannot be bypassed, and booting a generic Ubuntu RISC-V kernel
+  would take the board down on the vendor DTB and `boot.scr` chain.
+- **USB/IP to another host.** There is no `usbip` package in any configured
+  repository, and the local side would need `vhci-hcd` and root anyway.
 
 ## Running
 
