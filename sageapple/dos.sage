@@ -629,6 +629,12 @@ class DOS:
         var i = 0
         while i < len(s) and s[i] != " " and s[i] != ",":
             i = i + 1
+        ## Step over the separator between the buffer spec and the record
+        ## number. Slicing from i itself left s2 starting on the separator, so
+        ## the digit scan below always came up empty and every call was a
+        ## syntax error.
+        if i < len(s):
+            i = i + 1
         let s2 = slice(s, i, len(s))
         var j = 0
         while j < len(s2) and s2[j] >= "0" and s2[j] <= "9":
