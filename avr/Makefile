@@ -67,7 +67,7 @@ CFLAGS   = -mmcu=$(MC) -DF_CPU=$(B_CPU) -Os -Wall -Wextra -std=gnu11 -fno-strict
 ASFLAGS  = -mmcu=$(MC)
 LDFLAGS  = -mmcu=$(MC) -T avr.ld
 
-OBJS     = main.o sage6502.o bus.o rom_avr.o
+OBJS     = main.o led.o sage6502.o bus.o rom_avr.o
 ELF      = sageapple.elf
 SAGE     = sage-c
 
@@ -77,13 +77,13 @@ SAGE     = sage-c
 SAGELANG_AVR ?= ../SageLang/core/boards/AVR
 HOST_CC  = gcc
 HOST_CFLAGS = -O2 -DHOST -Wall -Wextra -std=gnu11
-APPLE2_OBJS = main.o sage6502.o bus_apple2.o rom_apple2.o
+APPLE2_OBJS = main.o led.o sage6502.o bus_apple2.o rom_apple2.o
 APPLE2_ELF = apple2.elf
 APPLE2_HEX = apple2.hex
 APPLE2_HOST = apple2_host_test
 
 .PHONY: apple2 apple2-gen apple2-host apple2-host-test apple2-flash
-.PHONY: verify chip-test apple2-chip-test flash-clean boot-verify boot-flash
+.PHONY: verify chip-test apple2-chip-test flash-clean boot-verify boot-flash led-test
 
 all: $(ELF) sageapple.hex
 	$(SIZE) $(ELF)
@@ -158,6 +158,19 @@ boot-flash: build-sage-boot
 # to the monitor rather than regenerating it by accident.
 rom:
 	cd .. && $(SAGE) tools/rom_gen.sage
+
+# The LED language is the one part of this firmware the transcript oracle cannot
+# check, because it never touches the serial port. So it is checked here instead:
+# led.c is compiled unmodified against avrtest/avr/io.h, where the port
+# registers are ordinary memory, and the beat is advanced by calling the
+# watchdog handler directly. A pattern is then a string of lit and unlit beats
+# that can be asserted on rather than watched for.
+LED_TEST_BIN = led_test
+led-test: $(LED_TEST_BIN)
+	@./$(LED_TEST_BIN)
+
+$(LED_TEST_BIN): led.c led.h led_test.c avrtest/avr/io.h avrtest/avr/interrupt.h
+	@gcc -O1 -Wall -Wextra -Iavrtest -I. -o $@ led.c led_test.c
 
 host: rom_host.c host_cmds.txt
 	gcc -O2 -DHOST -o host_test sage6502.c bus.c rom_host.c host_uart.c host_main.c

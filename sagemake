@@ -339,10 +339,33 @@ def cmd_test(args: list[str]) -> None:
     print(f"  {CYAN}→{RESET} {passed}/{len(suites)} suites passed")
 
     if has_host_toolchain():
+        # Both firmware images have to link, not just the one the oracle
+        # exercises. A call added in main.c broke the Apple II link once and
+        # every suite still passed, because nothing here built that image.
+        section("Firmware links")
+        for prof in ("all", "apple2.elf"):
+            step("make -C avr " + prof)
+            res = run(["make", "-C", "avr", prof], cwd=ROOT)
+            if res and res.returncode == 0:
+                ok()
+            else:
+                step_fail("firmware profile " + prof + " does not link")
+
         section("Host equivalence oracle")
         step("make -C avr host-test")
         run(["make", "-C", "avr", "host-test"], cwd=ROOT)
         ok()
+
+        # The LED never touches the serial port, so the oracle above cannot see
+        # it. This is the only coverage it has, which is why it runs here rather
+        # than waiting to be asked for.
+        section("LED language")
+        step("make -C avr led-test")
+        res = run(["make", "-C", "avr", "led-test"], cwd=ROOT)
+        if res and res.returncode == 0:
+            ok()
+        else:
+            step_fail("LED language checks failed")
     else:
         step_warn("make/gcc not found — skipping host-test")
 

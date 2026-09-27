@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### A language on the LED: boot progress, health, and fault codes
+The firmware had a heartbeat -- one LED lit for a beat every ten seconds -- which proved the firmware was alive and nothing else. It is replaced by a language that says how far the boot got, that it is up, and what went wrong.
+
+- **Boot.** Each stage completing is a burst that grows by one pulse, so the longest burst seen is the furthest the boot got: POWER one pulse, UART two, CPU three, MONITOR four. Then a steady light means booted and idle. MONITOR is observed rather than assumed: the boot code watches for the first byte on the serial port, which is the ROM announcing itself, so a boot that starts the 6502 and never hears from it is a real failure and reads as a three-pulse burst then darkness
+- **Faults.** Long pulses, counted, the count being the code: 1 brownout, 2 watchdog, 3 external reset, 4 UART overrun, 5 UART framing. The first three are latched from MCUSR before anything else runs, so a board that rebooted on a watchdog or a brownout says so on the next boot instead of looking normal. The group repeats, so the fault stays visible without catching a window
+- **Several LEDs** turn the same information into a progress bar: off not reached, flashing in progress, solid done, flashing alone where it failed. `LED_COUNT` selects the mode
+- Only the faults the firmware can actually observe are coded. There is deliberately no "CPU halted" code, because `halted` is never set in this port, so such a code could never fire
+- **Both a stock Nano and a stock Uno run the single-LED language**, and that is a hardware fact rather than a preference: a Uno's other two LEDs sit on D0 and D1, which belong to the UART, and its ON LED is wired to the supply. The multi-LED language needs external LEDs on free pins; D2 to D6 are unused by this firmware
+- 18 bytes of SRAM and about 100 of flash, which on a part with 2KB of SRAM and 1041 already in `.bss` leaves roughly 970 for the stack
+
+### The LED is now tested, and so is the other firmware profile
+An LED is the one thing the transcript oracle cannot check, because it never touches the serial port -- which is exactly how the first draft of the sequencer shipped with a "short" pulse running five beats and faults solid on, with a pulse and a gap tracked by two counters that were both live at once. `led_test.c` runs the real `led.c` on the host against a register shim (`avrtest/avr/io.h`) and advances the beat by calling the watchdog handler directly, so a pattern is a string of lit and unlit beats that can be asserted on. 31 checks, run by `sagemake test` rather than waiting to be asked for. It also caught `led_init` never clearing the latched fault, so the first fault of the first boot stuck forever.
+
+`led_decode.py` is a second, independent implementation of the same language, because a decoder sharing code with the thing it decodes is not a check; the two are diffed. The expected patterns in the test are built from the stage and fault *values* rather than written beside their names, after an earlier version expected one pulse for a stage that emits two and five for a fault whose code is four.
+
+Separately: `sagemake test` now builds both firmware images. Adding a call in `main.c` broke the Apple II link -- `main.o` referenced the LED driver and `APPLE2_OBJS` did not link it -- and every suite still passed, because nothing built that image. The regression is fixed; this is what stops it returning unnoticed.
+
 ### The FIREPHX clone works: build `cdc_acm` from the staged headers
 - The 2nd Uno R3 (FIREPHX 0843:5740) is usable on `6.6.63-ky`. The previous conclusion that it was impossible was wrong on a checkable fact: the vendor headers are shipped as a `.deb` **staged but not installed** in `/opt`. Installing it provides `/lib/modules/6.6.63-ky/build` with `Module.symvers` and prebuilt `scripts/`, and its `kernel.release` is `6.6.63-ky`, so modules built against it carry the running kernel's exact vermagic
 - A headers package has no driver source, so `cdc-acm.c` comes from the exact upstream `v6.6.63` tag and builds as a single-file out-of-tree module with no other dependencies. It loads, binds the device, and the board answers avrdude at 115200 with signature `0x1e950f`

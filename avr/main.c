@@ -14,30 +14,7 @@
 #define BAUD 9600UL
 #include <util/setbaud.h>
 
-// Heartbeat: LED on PB5 (pin 13) - ON for 1s every 10s
-// Uses Watchdog Timer for clock-independent timing (128kHz internal osc)
-static volatile uint8_t hb_counter = 0;
-static volatile uint8_t hb_state = 0;
-
-static void heartbeat_init(void) {
-    DDRB |= (1 << DDB5);
-    PORTB &= ~(1 << PORTB5);
-
-    wdt_disable();
-    WDTCSR = (1 << WDCE) | (1 << WDE);
-    WDTCSR = (1 << WDIE) | (1 << WDP2) | (1 << WDP1);  // ~1s interrupt
-}
-
-ISR(WDT_vect) {
-    hb_counter++;
-    if (hb_counter == 1) {
-        PORTB |= (1 << PORTB5);   // LED on
-    } else if (hb_counter == 2) {
-        PORTB &= ~(1 << PORTB5);  // LED off after 1s
-    } else if (hb_counter >= 10) {
-        hb_counter = 0;           // Restart 10s cycle
-    }
-}
+#include "led.h"
 
 static void uart_init(void) {
     UBRR0H = UBRRH_VALUE;
@@ -55,12 +32,30 @@ void bus_reset(void);
 
 int main(void) {
     cli();
+    led_init();                 /* first: latches the reset source */
+    led_stage_enter(LED_STAGE_POWER);
+    led_stage_done(LED_STAGE_POWER);
+
     uart_init();
-    heartbeat_init();
-    sei();
+    led_stage_enter(LED_STAGE_UART);
+    led_stage_done(LED_STAGE_UART);
+
     bus_reset();
     cpu_reset();
+    led_stage_enter(LED_STAGE_CPU);
+    led_stage_done(LED_STAGE_CPU);
+
+    sei();
+
     for (;;) {
         cpu_step();
+        /* The monitor ROM announces itself on the serial port, so the last boot
+           stage is observed rather than assumed. Watched in the main loop to
+           keep the interrupt short. */
+        if (!led_stage_is_done(LED_STAGE_MONITOR) && (UCSR0A & (1 << RXC0))) {
+            led_stage_done(LED_STAGE_MONITOR);
+            led_idle();
+        }
+        led_poll();             /* latches serial overrun or framing faults */
     }
 }

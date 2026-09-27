@@ -107,6 +107,12 @@ The host model gives the machine 2 KB RAM; the 328P has 2 KB SRAM total.
 The 1 KB `$0000-$03FF` mapping leaves the rest for the emulator (registers,
 stacks, buffers). This is intentional (see [`docs/bus.md`](bus.md)).
 
+## The LED language
+
+The firmware reports boot progress, health and faults on its LED: one steady
+light when it is up, a burst that grows with each boot stage, and long pulses
+whose count is a fault code. See [led.md](led.md).
+
 ## Build, flash, run
 
 ```sh
