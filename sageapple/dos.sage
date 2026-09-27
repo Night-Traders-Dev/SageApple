@@ -493,10 +493,9 @@ class DOS:
         self.maxfiles = v
 
     proc init_cmd(self, rest):
-        let name = self._arg1(rest)
-        if name == "":
-            self.err("SYNTAX ERROR")
-            return
+        ## Any trailing text is a volume name, which this format does not store,
+        ## so it is ignored. Requiring one used to make a bare INIT, the normal
+        ## DOS 3.3 form, fail with SYNTAX ERROR and never reformat anything.
         self.st.format()
         let lines = []
         var i = 0

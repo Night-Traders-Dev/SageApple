@@ -37,6 +37,24 @@ proc contains(hay, needle):
         i = i + 1
     return false
 
+## Small non-negative int to decimal, so buffer numbers can be spliced into a
+## command string. dos.sage has its own intstr, but it is module private. This
+## mirrors it: modulo for the digit, int() to truncate the quotient.
+proc num(n):
+    if n == 0:
+        return "0"
+    var v = n
+    var r = ""
+    while v > 0:
+        r = r + "0123456789"[v % 10]
+        v = int(v / 10)
+    var s = ""
+    var i = len(r) - 1
+    while i >= 0:
+        s = s + r[i]
+        i = i - 1
+    return s
+
 ## Run a DOS verb and return everything it printed.
 proc dos(m, o, cmd):
     o.dos.command(cmd)
@@ -222,7 +240,96 @@ check(contains(dos(m, o, "NOMON"), ""), "NOMON is accepted")
 check(d.mon_c == 0, "NOMON turns the counters off")
 
 #########################################################################
+print("== APPEND extends an existing text file ==")
+check(contains(dos(m, o, "APPEND NOLOG"), ""), "APPEND can create a file that does not exist yet")
+check(len(d.buffers) == 1, "APPEND opened one buffer")
+check(d.buffers[0]["mode"] == "a", "APPEND puts the buffer in append mode")
+d.print_line("FIRST")
+check(contains(dos(m, o, "CLOSE"), ""), "closing the append buffer is silent")
+let af = d.st.load_text("NOLOG")
+check(len(af) == 1 and af[0] == "FIRST", "APPEND created the file with the captured line")
+
+# A second APPEND must keep what is already on disk.
+d.st.save_text("TWICE", ["EXISTING"])
+check(contains(dos(m, o, "APPEND TWICE"), ""), "APPEND on an existing file is accepted")
+d.print_line("ADDED")
+check(contains(dos(m, o, "CLOSE"), ""), "closing the second append buffer is silent")
+let tf = d.st.load_text("TWICE")
+check(len(tf) == 2, "APPEND grew the file to two lines")
+check(tf[0] == "EXISTING", "APPEND kept the original line")
+check(tf[1] == "ADDED", "APPEND put the new line after it")
+check(contains(dos(m, o, "APPEND BLOB1"), "FILE TYPE MISMATCH"), "APPEND refuses a binary file")
+check(contains(dos(m, o, "APPEND"), "SYNTAX ERROR"), "APPEND with no name is a syntax error")
+
+#########################################################################
+print("== POSITION past end of file is safe ==")
+d.st.save_text("SHORT", ["ONLY"])
+check(contains(dos(m, o, "OPEN SHORT"), ""), "OPEN a one-line file")
+# Buffer numbers are the monotonically increasing id handed out at OPEN, not the
+# slot index, so ask for the number this buffer was actually given.
+let short_id = d.buffers[0]["id"]
+check(contains(dos(m, o, "READ " + num(short_id)), ""), "READ selects the buffer by its number")
+check(contains(dos(m, o, "POSITION " + num(short_id) + ",99"), ""), "POSITION past the end is accepted")
+check(d.buffers[0]["pos"] == 99, "the position is stored as given")
+# input_line and input_eof both clamp on pos >= len(lines), so an out-of-range
+# record must read as end of file rather than indexing past the line list.
+check(d.input_eof() == 1, "input_eof reports end of file past the last record")
+check(d.input_line() == nil, "input_line yields nil past the last record")
+check(contains(dos(m, o, "CLOSE"), ""), "the buffer still closes cleanly")
+check(contains(dos(m, o, "READ " + num(short_id)), "FILE NOT OPEN"), "a closed buffer number is reported gone")
+
+#########################################################################
+print("== BSAVE / BLOAD / BRUN move raw bytes ==")
+m.bus.write8(0x0300, 0x01)
+m.bus.write8(0x0301, 0x02)
+m.bus.write8(0x0302, 0x03)
+m.bus.write8(0x0303, 0x04)
+check(contains(dos(m, o, "BSAVE RAWBIN,A768,L4"), ""), "BSAVE of four bytes at $300 is accepted")
+check(d.st.find("RAWBIN") >= 0, "BSAVE creates the file")
+check(d.st.file_type("RAWBIN") == 0x42, "BSAVE stores it as a binary (B) file")
+let raw = d.st.load_blob("RAWBIN")
+check(len(raw) == 4, "BSAVE wrote four bytes")
+check(raw[0] == 0x01 and raw[3] == 0x04, "BSAVE preserved the byte values")
+check(contains(dos(m, o, "BSAVE"), "SYNTAX ERROR"), "BSAVE with no name is a syntax error")
+
+# Wipe memory, then BLOAD must put the bytes back at their address.
+m.bus.write8(0x0300, 0x00)
+m.bus.write8(0x0301, 0x00)
+check(contains(dos(m, o, "BLOAD RAWBIN"), ""), "BLOAD is accepted")
+check(m.bus.read8(0x0300) == 0x01, "BLOAD restored the first byte at $300")
+check(m.bus.read8(0x0303) == 0x04, "BLOAD restored the last byte at $303")
+check(contains(dos(m, o, "BLOAD NOSUCH"), "FILE NOT FOUND"), "BLOAD of a missing file is reported")
+
+# BRUN loads then executes at $300, so the CPU must stop rather than run away.
+let before_pc = m.cpu.regs.pc
+check(contains(dos(m, o, "BRUN NOSUCH"), ""), "BRUN of a missing file is quiet")
+check(m.cpu.regs.pc == before_pc, "a failed BRUN does not move the PC")
+check(contains(dos(m, o, "BRUN"), "SYNTAX ERROR"), "BRUN with no name is a syntax error")
+
+#########################################################################
+print("== INIT reformats the volume and installs HELLO ==")
+d.st.save_text("GONER", ["X"])
+check(d.st.find("GONER") >= 0, "a file exists before INIT")
+o.basic.new()
+o.basic.set_line(10, "PRINT \"FROM HELLO\"")
+check(contains(dos(m, o, "INIT"), ""), "bare INIT is silent on success")
+check(d.st.find("GONER") < 0, "INIT wiped the previous directory")
+check(d.st.find("HELLO") >= 0, "INIT installed the HELLO program")
+check(d.st.file_type("HELLO") == 0x41, "HELLO is an Applesoft file")
+# DOS treats trailing text as a volume name; it must still be accepted.
+check(contains(dos(m, o, "INIT VOLNAME"), ""), "INIT with a trailing volume name is accepted")
+check(d.st.find("HELLO") >= 0, "the volume name did not disturb the HELLO program")
+check(len(d.buffers) == 0, "INIT left no buffers behind")
+
+#########################################################################
+print("== EXEC is bounded ==")
+check(contains(dos(m, o, "EXEC"), "SYNTAX ERROR"), "EXEC with no name is a syntax error")
+check(contains(dos(m, o, "EXEC NOSUCH"), ""), "EXEC of a missing file is quiet")
+check(d.exec_depth == 0, "exec_depth is back to zero after EXEC returns")
+
+#########################################################################
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:
     print("ALL OK")
+
