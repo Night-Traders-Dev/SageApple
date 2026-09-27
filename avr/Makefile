@@ -197,8 +197,11 @@ sageapple_padded.hex: sageapple.elf
 apple2_padded.hex: apple2.elf
 	$(OBJCOPY) --gap-fill 0xff --pad-to $(BOOT_START) -O ihex -R .eeprom $< $@
 
-flash-clean: sageapple_padded.hex
-	$(call do_flash,sageapple_padded.hex)
+# Historical name. `make flash` clears pages below the bootloader by default, so
+# this is now an alias rather than a separate operation. Use FLASH_CLEAR=0 to
+# get the old fast write that leaves the rest of flash alone.
+flash-clean: flash
+	@echo "flash-clean is an alias for flash; see FLASH_CLEAR in the Makefile" 
 
 host-test: host
 	./host_test host_cmds.txt > host_out.txt
