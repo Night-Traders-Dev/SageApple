@@ -114,6 +114,32 @@ PROJECT_NAME = "SageApple"
 BINARY_NAME = "sageapple"
 
 REQUIRED_DEPS = ["sage-c"]
+def available_cpus() -> int:
+    """One job per core, never fewer than one."""
+    try:
+        n = os.cpu_count() or 1
+    except NotImplementedError:
+        n = 1
+    return max(1, n)
+
+
+def build_jobs(args) -> str:
+    """Job count for the compiler, matching SageLang's sagemake.
+
+    A --jobs flag wins, then SAGE_BUILD_JOBS, then one per core. Clamped to the
+    core count so an over-large request cannot thrash a small board.
+    """
+    requested = getattr(args, "jobs", None) or os.environ.get("SAGE_BUILD_JOBS")
+    cpus = available_cpus()
+    if requested is None:
+        return str(cpus)
+    try:
+        requested = int(requested)
+    except (TypeError, ValueError):
+        return str(cpus)
+    return str(max(1, min(requested, cpus)))
+
+
 OPTIONAL_DEPS = ["make", "gcc", "avr-gcc", "avr-objcopy", "avr-objdump", "avr-size", "avrdude"]
 
 # Source trees that participate in the build hash.
@@ -228,10 +254,10 @@ def gen_artifacts() -> None:
     ok()
 
 
-def build_avr() -> None:
+def build_avr(args=None) -> None:
     section("AVR firmware (ATmega328P)")
-    step("make -C avr")
-    run(["make", "-C", "avr"], cwd=ROOT)
+    step("make -C avr -j" + build_jobs(args))
+    run(["make", "-C", "avr", "-j" + build_jobs(args)], cwd=ROOT)
     ok()
 
 
@@ -261,7 +287,7 @@ def cmd_build(args: list[str]) -> None:
     if skip_avr:
         step_warn("skipping AVR firmware build (--skip-avr)")
     elif has_avr_toolchain():
-        build_avr()
+        build_avr(args)
     else:
         step_warn("AVR toolchain (avr-gcc) not found — skipping firmware build")
 
@@ -339,7 +365,7 @@ def cmd_avr(args: list[str]) -> None:
     check_dependencies()
     if not has_avr_toolchain():
         step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
-    build_avr()
+    build_avr(args)
     step_ok("firmware built — see avr/sageapple.hex")
 
 
@@ -350,7 +376,7 @@ def cmd_apple2(args: list[str]) -> None:
         step_fail("AVR toolchain missing — install gcc-avr avr-libc binutils-avr avrdude")
     section("Apple II profile")
     step("make -C avr apple2")
-    run(["make", "-C", "avr", "apple2"], cwd=ROOT)
+    run(["make", "-C", "avr", "-j" + build_jobs(args), "apple2"], cwd=ROOT)
     ok()
     if "--flash" in args:
         step("make -C avr apple2-flash")
@@ -387,7 +413,7 @@ def cmd_chip_test(args: list[str]) -> None:
 
     section("Build")
     step("make -C avr")
-    run(["make", "-C", "avr"], cwd=ROOT)
+    run(["make", "-C", "avr", "-j" + build_jobs(args)], cwd=ROOT)
     ok()
     step_ok("firmware built")
 
@@ -426,7 +452,7 @@ def cmd_apple2_chip_test(args: list[str]) -> None:
 
     section("Build the reduced Apple II profile")
     step("make -C avr apple2")
-    run(["make", "-C", "avr", "apple2"], cwd=ROOT)
+    run(["make", "-C", "avr", "-j" + build_jobs(args), "apple2"], cwd=ROOT)
     ok()
     step_ok("firmware built")
 

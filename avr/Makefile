@@ -168,7 +168,7 @@ verify: sageapple.hex
 
 # Flash, read back, then drive the board and diff its transcript against the
 # host oracle.
-chip-test: $(SAGEAPPLE_FLASH_IMAGE)
+chip-test: $(SAGEAPPLE_FLASH_IMAGE) sageapple.hex
 	$(call do_flash,$(SAGEAPPLE_FLASH_IMAGE))
 	$(call do_verify,sageapple.hex,$(READBACK))
 # --port is not optional here: it must be the same DEVICE avrdude just
@@ -181,7 +181,7 @@ chip-test: $(SAGEAPPLE_FLASH_IMAGE)
 apple2_expected.txt: apple2-host
 	./$(APPLE2_HOST) --dump > $@
 
-apple2-chip-test: $(APPLE2_FLASH_IMAGE) apple2_expected.txt
+apple2-chip-test: $(APPLE2_FLASH_IMAGE) $(APPLE2_HEX) apple2_expected.txt
 	$(call do_flash,$(APPLE2_FLASH_IMAGE))
 	$(call do_verify,$(APPLE2_HEX),$(APPLE2_READBACK))
 	python3 chip_test.py --port $(DEVICE) --banner=A2 --cmds apple2_cmds.txt \
@@ -193,10 +193,10 @@ apple2-chip-test: $(APPLE2_FLASH_IMAGE) apple2_expected.txt
 # touch every page below it, which erases them.
 # Explicit rules, not a %.padded.hex pattern: a pattern rule would ask for
 # sageapple_padded.elf, find nothing, and silently reuse a stale image.
-sageapple_padded.hex: sageapple.elf
+sageapple_padded.hex: sageapple.hex sageapple.elf
 	$(OBJCOPY) --gap-fill 0xff --pad-to $(BOOT_START) -O ihex -R .eeprom $< $@
 
-apple2_padded.hex: apple2.elf
+apple2_padded.hex: $(APPLE2_HEX) apple2.elf
 	$(OBJCOPY) --gap-fill 0xff --pad-to $(BOOT_START) -O ihex -R .eeprom $< $@
 
 # Historical name. `make flash` clears pages below the bootloader by default, so
