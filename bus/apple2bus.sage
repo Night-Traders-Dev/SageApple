@@ -13,7 +13,14 @@ import devices.uart
 ## is why the autostart monitor at $FA62 is unaffected by whether a card is
 ## present. The card does not replace the firmware, it shadows it.
 class Apple2Bus:
-    proc init(self):
+    ## model is "ii", the default, or "iie". It selects the video switch map and
+    ## whether aux memory and the $C0E0-$C0EF bank switches exist. The ][ order is
+    ## the default because that is what this machine has always been, and moving it
+    ## would take $C055/$C056 out from under existing guests.
+    proc init(self, model = "ii"):
+        if model != "ii" and model != "iie":
+            raise "Apple2Bus model must be ii or iie"
+        self.model = model
         self.ram = []
         var i = 0
         while i < 0xC000:
@@ -40,6 +47,20 @@ class Apple2Bus:
             push(self.language_card_rom, 0x00)
             lci = lci + 1
         self.language_card_rom_present = false
+        ## IIe only. 1 KiB of auxiliary memory at $D000-$DFFF, bank 2, which is where
+        ## a text page lives in 80-column mode. Allocated in both modes so the memory
+        ## shape does not depend on the model, but reachable only in IIe mode.
+        self.aux_ram = []
+        var aux_i = 0
+        while aux_i < 0x400:
+            push(self.aux_ram, 0x00)
+            aux_i = aux_i + 1
+        self.store80 = false
+        self.page2_aux = false
+        self.page1_aux = false
+        self.col80 = false
+        self.prewrite = false
+        self.textclr = false
         self._reset_language_card_state()
         self.slot_roms = []
         var slot = 0
@@ -298,8 +319,41 @@ class Apple2Bus:
         self.page2 = false
         self.hires = false
 
+    ## The ][ and the IIe disagree about the upper four video switches, and a guest
+    ## probing them gets a different answer on each machine. That is not a quirk to
+    ## paper over: it is the answer.
+    ##
+    ## IIe order is $C054 LORES, $C055 PREWRITE, $C056 TEXTCLR, $C057 HIRES, and
+    ## PAGE2 moves to $C00C/$C00D. HIRES shares $C056 with TEXTCLR, which is why
+    ## IIe software sets $C056 and then $C057 to choose between them rather than
+    ## treating the pair as independent.
+    ## IIe only. $D000-$DFFF is bank 1, the language card, unless 80STORE or 80COL
+    ## is set, in which case it is aux memory. This single predicate is what
+    ## 80-column text rests on: the firmware writes the text page to main memory,
+    ## mirrors it into aux, and reads aux back to draw it.
+    proc _aux_selected(self):
+        if self.model != "iie":
+            return false
+        return self.store80 or self.col80
+
     proc _apply_video_switch(self, addr):
         let index = addr - 0xC050
+        if self.model == "iie":
+            if index == 4:
+                self.lores = true
+                return
+            if index == 5:
+                self.prewrite = true
+                return
+            if index == 6:
+                ## $C056 alone is TEXTCLR; $C057 set afterwards makes it HIRES.
+                self.textclr = true
+                self.hires = false
+                return
+            if index == 7:
+                self.hires = true
+                self.textclr = false
+                return
         if index == 0:
             self.text = false
         elif index == 1:
@@ -361,6 +415,9 @@ class Apple2Bus:
             ## requiring both would stop a program using the card the way every
             ## real program does. There is no main RAM behind $D000 on this
             ## machine, so RAMRD has nothing here to disable.
+            ## IIe: 80STORE or 80COL puts aux memory here instead of the card.
+            if self._aux_selected():
+                return self.aux_ram[addr - 0xD000]
             if self.language_card_read_ram:
                 return self.language_card_ram[self._language_card_ram_offset(addr)]
             ## Read-ROM: a fitted card shadows the firmware over $D000-$F7FF. With
@@ -399,7 +456,11 @@ class Apple2Bus:
             if self.annunciators[index]:
                 return 0x80
             return 0x00
-        if addr >= 0xC0E8 and addr <= 0xC0EB:
+        ## ][ only. On a IIe these four addresses are 80STORE and 80COL, and the
+        ## IIe block below answers for them instead. The model guard is what fixes
+        ## the ordering too: this block comes first in read8, so without it, ][
+        ## RDROM/RDRAM shadowed the IIe 80STORE/80COL and $C0E9 read back inverted.
+        if self.model == "ii" and addr >= 0xC0E8 and addr <= 0xC0EB:
             ## Each reads the latch of the switch opposite it, because that is
             ## how they are wired: RDROM set means reads come from ROM.
             if addr == 0xC0E8:
@@ -420,6 +481,30 @@ class Apple2Bus:
                 ## report a freshly powered machine as writable.
                 if self.ram_write_enabled:
                     return 0x00
+                return 0x80
+            return 0x00
+        if self.model == "iie" and addr >= 0xC0E0 and addr <= 0xC0EF:
+            ## Each reads the latch of the switch opposite it, because that is how
+            ## they are wired: $C0E0 reports $C0E1's state and so on.
+            if addr == 0xC0E0:
+                if self.store80:
+                    return 0x00
+                return 0x80
+            if addr == 0xC0E1:
+                if self.store80:
+                    return 0x80
+                return 0x00
+            if addr == 0xC0E8:
+                if self.col80:
+                    return 0x00
+                return 0x80
+            if addr == 0xC0E9:
+                if self.col80:
+                    return 0x80
+                return 0x00
+            return 0x00
+        if self.model == "iie" and addr >= 0xC00C and addr <= 0xC00D:
+            if self.page2_aux:
                 return 0x80
             return 0x00
         if addr == 0xC061:
@@ -466,6 +551,11 @@ class Apple2Bus:
             self._record_event(addr, value)
             return
         if addr >= 0xD000:
+            ## IIe: aux is chosen by the same predicate as reads, so a read and a
+            ## write of the same address always agree about where it went.
+            if addr < 0xE000 and self._aux_selected():
+                self.aux_ram[addr - 0xD000] = value
+                return
             ## The card's own write-RAM switch, not RAMWR: this range is the
             ## card on this machine. $F800 up is the ROM and is read-only.
             if addr < 0xF800 and self.language_card_write_ram:
@@ -476,6 +566,48 @@ class Apple2Bus:
             return
         if addr == 0xC030:
             self._toggle_speaker()
+            return
+        if self.model == "iie" and addr >= 0xC0E0 and addr <= 0xC0EF:
+            if addr == 0xC0E0:
+                self.store80 = false
+                return
+            if addr == 0xC0E1:
+                self.store80 = true
+                return
+            if addr == 0xC0E2:
+                self.page2_aux = false
+                return
+            if addr == 0xC0E3:
+                self.page2_aux = true
+                return
+            if addr == 0xC0E4:
+                self.page2_aux = false
+                return
+            if addr == 0xC0E5:
+                self.page2_aux = true
+                return
+            if addr == 0xC0E6:
+                self.page1_aux = false
+                return
+            if addr == 0xC0E7:
+                self.page1_aux = true
+                return
+            if addr == 0xC0E8:
+                self.col80 = false
+                return
+            if addr == 0xC0E9:
+                self.col80 = true
+                return
+            if addr == 0xC0EE:
+                self.store80 = true
+                return
+            if addr == 0xC0EF:
+                return
+        if self.model == "iie" and addr >= 0xC00C and addr <= 0xC00D:
+            ## PAGE2 lives at $C00C/$C00D on a IIe, because $C054/$C055 were needed
+            ## for LORES and PREWRITE. It selects the second page in aux memory.
+            self.page2 = (addr == 0xC00D)
+            self.page2_aux = (addr == 0xC00D)
             return
         if addr >= 0xC0E8 and addr <= 0xC0EB:
             if addr == 0xC0E8:

@@ -6,8 +6,12 @@ import sageapple.apple2_lores
 import sageapple.apple2_text
 
 class Apple2Machine:
-    proc init(self):
-        self.bus = apple2bus.Apple2Bus()
+    ## model is "ii" (default) or "iie". It selects the video switch map and whether
+    ## aux memory and the $C0E0-$C0EF bank switches exist. Defaults to ][ because
+    ## that is what this machine has always been.
+    proc init(self, model = "ii"):
+        self.model = model
+        self.bus = apple2bus.Apple2Bus(model)
         self.cpu = cpu.CPU(self.bus)
         self.text = apple2_text.Apple2TextPage(self.bus)
         self.hires = apple2_hires.Apple2HiresPage(self.bus)

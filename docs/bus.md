@@ -66,9 +66,31 @@ programs fit comfortably. See [docs/avr.md](avr.md).
 
 ## Which Apple ][ this is
 
-**The video and memory-management switches follow the original Apple ][ (1977).**
-The text encoding follows the IIe. Those are not the same machine, and the
-difference is load-bearing, so it is written down rather than inferred.
+`Apple2Bus(model)` and `Apple2Machine(model)` take `"ii"` or `"iie"`. The default
+is `"ii"`, and that is what the rest of this file describes.
+
+| | `][ (default) | `iie` |
+|---|---|---|
+| `$C054` | PAGE2 off | LORES / PAGESIZE |
+| `$C055` | PAGE2 on | PREWRITE |
+| `$C056` | HIRES off | TEXTCLR, or HIRES when `$C057` follows |
+| `$C057` | HIRES on | HIRES, clearing TEXTCLR |
+| PAGE2 | via `$C054`/`$C055` | via `$C00C`/`$C00D` |
+| `$C0E0-$C0EF` | not decoded | 80STORE, PAGE2, 80COL |
+| `$D000-$DFFF` | no aux memory | 1 KiB aux, selected by 80STORE or 80COL |
+
+Both maps are supported rather than one being replaced, because the ][ one is what
+existing guests and the byte-exact board transcripts are written against, and
+because a guest probing a switch should get a consistent answer for the machine it
+is on. A ][ does not answer `$C0E9`, since that would be a lie about the machine.
+
+The IIe video map is what makes 80-column addable later without a breaking change:
+aux memory and the bank switches are in place, and what remains is the `$C800`
+80-column firmware ROM, which is 6502 code and is not written.
+
+**The text encoding follows the IIe on both.** `$00-$3F` is inverse and `$40-$7F` is
+flash. The original ][ text page is plain ASCII with bit 7 as inverse, so this is a
+known inconsistency that the model does not yet cover.
 
 | subsystem | follows | evidence |
 |---|---|---|

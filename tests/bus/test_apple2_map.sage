@@ -601,6 +601,105 @@ check(fitted.read8(0xF800) == rom[0x2800],
 check(fitted.read8(0xFFFF) == rom[0x2FFF],
       "and the same at the top of the address space")
 
+## Two machines, one bus class. The ][ and IIe disagree about the upper four
+## video switches, and that difference is the reason 80-column could not simply be
+## added: on a IIe $C055/$C056 are PREWRITE and TEXTCLR where a ][ has PAGE2-on and
+## HIRES-off. Rather than moving the map and breaking existing guests, both are
+## supported and chosen at construction. ][ is the default, so nothing above this
+## point changes.
+let ii_bus = apple2bus.Apple2Bus()
+let iie_bus = apple2bus.Apple2Bus("iie")
+check(ii_bus.model == "ii", "the bus defaults to the original ][")
+check(iie_bus.model == "iie", "a IIe can be asked for")
+
+ii_bus.write8(0xC055, 0x00)
+iie_bus.write8(0xC055, 0x00)
+check(ii_bus.page2 == true and ii_bus.prewrite == false, "$C055 is PAGE2-on on a ][")
+check(iie_bus.page2 == false and iie_bus.prewrite == true, "$C055 is PREWRITE on a IIe")
+
+ii_bus.write8(0xC056, 0x00)
+iie_bus.write8(0xC056, 0x00)
+check(ii_bus.hires == false, "$C056 is HIRES-off on a ][")
+check(iie_bus.textclr == true, "$C056 is TEXTCLR on a IIe")
+
+## HIRES shares $C056 on a IIe, which is why IIe software sets $C056 then $C057.
+ii_bus.write8(0xC057, 0x00)
+iie_bus.write8(0xC057, 0x00)
+check(ii_bus.hires == true, "$C057 is HIRES-on on a ][")
+check(iie_bus.hires == true and iie_bus.textclr == false,
+      "$C057 after $C056 selects HIRES over TEXTCLR on a IIe")
+
+## $C0E9 does not exist on a ][. Answering it would be a lie about the machine,
+## which is the whole reason the map is selected rather than assumed.
+ii_bus.write8(0xC0E9, 0x00)
+iie_bus.write8(0xC0E9, 0x00)
+check(ii_bus.col80 == false, "$C0E9 is not decoded on a ][")
+check(iie_bus.col80 == true, "$C0E9 is 80COL on a IIe")
+
+## PAGE2 moved to $C00C/$C00D on a IIe precisely because $C054/$C055 were needed
+## for LORES and PREWRITE.
+iie_bus.write8(0xC00D, 0x00)
+check(iie_bus.page2 == true, "PAGE2 selects through $C00C/$C00D on a IIe")
+iie_bus.write8(0xC00C, 0x00)
+check(iie_bus.page2 == false, "and back off again")
+
+## Aux memory: the bank-2 rule that 80-column rests on. 80STORE or 80COL puts aux
+## at $D000-$DFFF instead of the language card. The card resets to bank 2, where
+## $D000 maps to offset 0x1000 of its RAM.
+## Start from a known state: an earlier check in this block set 80COL, so the
+## first write below would have gone to aux rather than to the card.
+iie_bus.write8(0xC0E8, 0x00)
+check(iie_bus.col80 == false, "80COL is clear again before the aux checks")
+iie_bus.language_card_read_ram = true
+let card_offset = 0x1000
+
+iie_bus.write8(0xD000, 0x11)
+check(iie_bus.read8(0xD000) == 0x11, "with no aux selected, $D000 is the card")
+check(iie_bus.language_card_ram[card_offset] == 0x11, "and the write landed in the card")
+check(iie_bus.aux_ram[0] == 0x00, "aux was not touched")
+
+iie_bus.write8(0xC0E1, 0x00)
+check(iie_bus.store80 == true, "$C0E1 sets 80STORE")
+iie_bus.write8(0xD000, 0x22)
+check(iie_bus.read8(0xD000) == 0x22, "with 80STORE set, $D000 is aux")
+check(iie_bus.aux_ram[0] == 0x22, "and the write landed in aux")
+check(iie_bus.language_card_ram[card_offset] == 0x11, "leaving the card RAM alone")
+
+iie_bus.write8(0xC0E0, 0x00)
+check(iie_bus.store80 == false, "$C0E0 clears 80STORE")
+check(iie_bus.read8(0xD000) == 0x11, "and $D000 hands back to the card")
+check(iie_bus.aux_ram[0] == 0x22, "with aux still holding what was written to it")
+
+## 80COL selects aux on its own, which is the other half of the rule.
+iie_bus.write8(0xC0E9, 0x00)
+check(iie_bus.col80 == true, "$C0E9 sets 80COL")
+check(iie_bus.read8(0xD000) == 0x22, "which is enough to select aux by itself")
+iie_bus.write8(0xD000, 0x33)
+check(iie_bus.aux_ram[0] == 0x33, "and the write lands in aux")
+
+## The switches report each other, because they are wired that way.
+check(iie_bus.read8(0xC0E9) == 0x80, "$C0E9 reads set while 80COL is on")
+check(iie_bus.read8(0xC0E8) == 0x00, "$C0E8 reads clear, being 80COL's opposite")
+iie_bus.write8(0xC0E8, 0x00)
+check(iie_bus.col80 == false, "writing $C0E8 clears 80COL")
+check(iie_bus.read8(0xD000) == 0x11, "and $D000 is back on the card")
+
+## And a ][ has no aux at all, which is the point of not decoding $C0E0-$C0EF there.
+## The card resets to bank 2, where $D000 is offset 0x1000 of the card RAM -- not
+## offset 0, which is where the other two checks in this block went wrong first.
+ii_bus.language_card_read_ram = true
+ii_bus.write8(0xD000, 0x66)
+check(ii_bus.aux_ram[0] == 0x00, "a ][ cannot reach aux memory")
+check(ii_bus.language_card_ram[card_offset] == 0x66, "because the card has it all the way")
+
+## A bad model is refused rather than silently treated as one of the two.
+var rejected = false
+try:
+    apple2bus.Apple2Bus("iic")
+catch e:
+    rejected = true
+check(rejected, "an unknown model is rejected")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:
