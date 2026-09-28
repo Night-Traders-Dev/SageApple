@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### The test suite runs its suites at the same time
+The suites were a `for` loop, one `sage-c` process at a time. They are independent -- each builds its own machine and asserts on it -- and nothing orders them, so the run was bounded by their *sum*: 827s, of which the longest single suite was 159s. It is now bounded by the slowest one, 192s for the whole run including both firmware builds and the LED tests.
+
+The limit is memory rather than cores. A suite peaks near 170MB, and this machine has under 7GB to share, so the ceiling is what stops a run on something smaller from being OOM-killed partway through rather than merely being slow. Measured peak across the concurrent run: 665MB against a 2048MB budget.
+
+`TEST_JOBS` overrides the width, and `TEST_JOBS=1` restores the old serial order -- worth knowing, because a GC bug and a concurrency bug look alike from the outside. `TEST_MEM_BUDGET_MB` and `TEST_SUITE_MB` move the ceiling.
+
+Reporting is still in suite order, not completion order. A report that reshuffles itself between runs cannot be read against a previous one, which is most of what a test run is for.
+
 ### A language on the LED: boot progress, health, and fault codes
 The firmware had a heartbeat -- one LED lit for a beat every ten seconds -- which proved the firmware was alive and nothing else. It is replaced by a language that says how far the boot got, that it is up, and what went wrong.
 

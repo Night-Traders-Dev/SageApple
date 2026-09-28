@@ -38,6 +38,7 @@ import os
 import platform
 import shutil
 import subprocess
+import concurrent.futures as cf
 import sys
 import tempfile
 from pathlib import Path
@@ -315,26 +316,79 @@ def cmd_test(args: list[str]) -> None:
     if not suites:
         step_fail("no test suites found under tests/")
 
+    # The suites are independent -- each one builds its own machine and
+    # asserts on it -- so they run concurrently. Serially the run was bounded
+    # by the sum, 827s, of which the longest single suite was 159s; nothing
+    # orders them, so the wall clock is now the slowest suite rather than the
+    # total.
+    #
+    # The bound is on memory, not on cores. A suite peaks around 170MB, and
+    # this box has under 7GB to share, so the ceiling is what stops a run on a
+    # smaller machine from being OOM-killed halfway through instead of merely
+    # being slow. TEST_JOBS overrides it; 1 restores the old serial order.
+    per_suite_mb = int(os.environ.get("TEST_SUITE_MB", "200"))
+    budget_mb = int(os.environ.get("TEST_MEM_BUDGET_MB", "2048"))
+    by_memory = max(1, budget_mb // per_suite_mb)
+    jobs = int(os.environ.get("TEST_JOBS", "0"))
+    if jobs <= 0:
+        jobs = min(len(suites), by_memory, (os.cpu_count() or 2))
+    jobs = max(1, min(jobs, len(suites)))
+
+    def run_suite(suite):
+        rel = str(suite.relative_to(ROOT))
+        try:
+            r = subprocess.run(
+                [sage_cmd(), rel], cwd=ROOT,
+                capture_output=True, text=True, timeout=1800,
+            )
+            return suite, rel, r.returncode, r.stdout + r.stderr, None
+        except subprocess.TimeoutExpired:
+            return suite, rel, 1, "", "timed out"
+
+    # Ordered output regardless of completion order: a report that reshuffles
+    # itself between runs cannot be read against a previous one.
+    results = [None] * len(suites)
+    step(f"{len(suites)} suites, {jobs} at a time"
+         + (f" (TEST_JOBS=1, serial)" if jobs == 1 else ""))
+    next_report = 0
+    if jobs == 1:
+        for i, suite in enumerate(suites):
+            results[i] = run_suite(suite)
+    else:
+        with cf.ThreadPoolExecutor(max_workers=jobs) as pool:
+            pending = {pool.submit(run_suite, s): i for i, s in enumerate(suites)}
+            for fut in cf.as_completed(pending):
+                results[pending[fut]] = fut.result()
+                while next_report < len(suites) and results[next_report] is not None:
+                    suite, rel, code, out, err = results[next_report]
+                    step(f"sage-c {rel}")
+                    if err:
+                        step_fail(f"{err}: {suite.name}")
+                    elif code == 0 and "ALL OK" in out:
+                        ok()
+                    else:
+                        print(f"{RED}✗ failed{RESET}")
+                        print(out)
+                        sys.exit(1)
+                    next_report += 1
+
     failures = 0
     passed = 0
-    for suite in suites:
-        step(f"sage-c {suite.relative_to(ROOT)}")
-        try:
-            result = subprocess.run(
-                [sage_cmd(), str(suite.relative_to(ROOT))],
-                cwd=ROOT, capture_output=True, text=True, timeout=600,
-            )
-        except subprocess.TimeoutExpired:
-            step_fail(f"timed out: {suite.name}")
-        out = result.stdout + result.stderr
-        if result.returncode == 0 and "ALL OK" in out:
-            ok()
+    for suite, rel, code, out, err in results:
+        if err:
+            failures += 1
+            step(f"sage-c {rel}")
+            step_fail(f"{err}: {suite.name}")
+        elif code == 0 and "ALL OK" in out:
             passed += 1
+            if jobs == 1:
+                step(f"sage-c {rel}")
+                ok()
         else:
             failures += 1
+            step(f"sage-c {rel}")
             print(f"{RED}✗ failed{RESET}")
             print(out)
-            sys.exit(1)
 
     print(f"  {CYAN}→{RESET} {passed}/{len(suites)} suites passed")
 
