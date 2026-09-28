@@ -114,6 +114,74 @@ check(slice(cm3.render_text(1, true), 0, 3) == "HIA", "the text page reflects th
 type_keys(cm3, "C", 2000)
 check(cm3.bus.read8(0x0403) == 0xC3, "typing after a backspace rewrites the same cell")
 
+## --- Autostart: RESET plus a video soft-switch write ---
+## Re-established here rather than relying on the boot above: the checks earlier
+## in this file reset the machine, and a reset clears RAM, which wipes the vector
+## at $3F4. Asserting on state something else destroyed is how a test ends up
+## reporting a failure for the wrong reason.
+bus.reset()
+machine_cpu.reset()
+machine.load_rom(rom)
+var boot_again = 0
+while boot_again < 200:
+    machine_cpu.step()
+    boot_again = boot_again + 1
+
+## $3F4 is inside the write-protected $0200-$03FF page, so the boot program has to
+## clear RAMWR before publishing the vector. A vector of zero here means that store
+## was discarded -- which is the protection working, not a fault.
+check(bus.read8(0x3F4) == 0x62 and bus.read8(0x3F5) == 0xFA,
+      "boot publishes the autostart entry at $3F4")
+
+let autostart_entry = bus.read8(0x3F4) | (bus.read8(0x3F5) << 8)
+check(autostart_entry == 0xFA62, "the vector points at $FA62, where the monitor lives")
+let rom_offset = 0xFA62 - 0xD000
+check(bus.rom[rom_offset] != 0x00, "there is code at $FA62, not a hole in the ROM")
+check(bus.rom[0x2FFA] == 0x00 and bus.rom[0x2FFB] == 0xD0,
+      "the hardware reset vector still enters the boot program, as it should")
+
+## Entering it: a soft-switch write while RESET is pending.
+bus.reset_key()
+check(bus.autostart_requested == false, "RESET alone does not request autostart")
+bus.write8(0xC050, 0x00)
+check(bus.autostart_requested == true, "a video soft-switch write under RESET requests it")
+check(bus.reset_pending == false, "and consumes the RESET flag")
+let pc_before = machine_cpu.regs.pc
+machine_cpu.step()
+## step() loads the PC and then executes one instruction, so it ends two bytes
+## past the entry -- the LDA #$00 that opens the monitor. Asserting the exact
+## address would be asserting the length of the first instruction.
+check(machine_cpu.regs.pc >= autostart_entry and machine_cpu.regs.pc <= 0xFAFF,
+      "the CPU jumps out of the boot program into the monitor")
+check(pc_before != machine_cpu.regs.pc, "and the PC actually moved")
+check(bus.autostart_requested == false, "the request is consumed by the jump")
+
+## The monitor's own behaviour, given enough instructions to finish clearing the
+## 960-byte text page. 3000 was tried once and the loop had not fallen out.
+var asteps = 0
+while asteps < 20000:
+    machine_cpu.step()
+    asteps = asteps + 1
+check(bus.serial_text() == "A2\r\nHI\r\nAUTOSTART\r\n",
+      "the monitor clears the screen and prints its banner over the console")
+check(machine_cpu.regs.pc >= 0xFA62 and machine_cpu.regs.pc <= 0xFAFF,
+      "the CPU is inside the monitor, not back at the boot program")
+## trim=false, because trimming a page that is now entirely blank strips the
+## leading spaces and returns the empty string, which can never match.
+check(slice(machine.render_text(1, false), 0, 8) == "        ",
+      "the text page is blank, where boot had left HI")
+
+## And it echoes what is typed, which is what makes it a monitor rather than a
+## sign-on screen.
+bus.keyboard_input("OK")
+var esteps = 0
+while esteps < 4000:
+    machine_cpu.step()
+    esteps = esteps + 1
+check(bus.serial_text() == "A2\r\nHI\r\nAUTOSTART\r\nOK",
+      "the monitor echoes typed characters")
+check(bus.ram[0x0400] == 0xA0, "the cleared screen is screen spaces, not ASCII spaces")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:

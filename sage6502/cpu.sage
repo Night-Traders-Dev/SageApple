@@ -449,6 +449,13 @@ class CPU:
 
     proc step(self):
 
+        ## RESET plus a video soft-switch write is an autostart on a ][, and the
+        ## target is whatever firmware published at $3F4. Checked here, before the
+        ## fetch, so the jump lands between instructions as it does on hardware.
+        if self.bus.autostart_requested:
+            self.bus.autostart_requested = false
+            self.regs.pc = self.read8(0x03F4) | (self.read8(0x03F5) << 8)
+
         if self.halted:
             return
 

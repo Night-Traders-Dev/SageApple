@@ -55,6 +55,10 @@ class Apple2Bus:
         ## where $C010 reads with bit 7 clear. Modelled separately so software
         ## polling for it can tell it from a waiting key.
         self.reset_pending = false
+        ## Raised by RESET observed on a video soft-switch write, consumed by the
+        ## CPU, which loads the PC from the boot vector at $3F4. The bus cannot do
+        ## it itself: the program counter belongs to the CPU.
+        self.autostart_requested = false
         self.speaker_on = false
         self.speaker_toggles = 0
         # Annunciators, paddle ports and the RTC counters. Like the video
@@ -97,6 +101,10 @@ class Apple2Bus:
         ## where $C010 reads with bit 7 clear. Modelled separately so software
         ## polling for it can tell it from a waiting key.
         self.reset_pending = false
+        ## Raised by RESET observed on a video soft-switch write, consumed by the
+        ## CPU, which loads the PC from the boot vector at $3F4. The bus cannot do
+        ## it itself: the program counter belongs to the CPU.
+        self.autostart_requested = false
         self.speaker_on = false
         self.speaker_toggles = 0
         # Annunciators, paddle ports and the RTC counters. Like the video
@@ -464,6 +472,11 @@ class Apple2Bus:
                 self.ram_write_enabled = (value & 0x80) == 0
                 return
         if addr >= 0xC050 and addr <= 0xC057:
+            ## A ][ enters the autostart monitor when RESET is held while any
+            ## video soft-switch is written. The switch still applies.
+            if self.reset_pending:
+                self.reset_pending = false
+                self.autostart_requested = true
             self._apply_video_switch(addr)
             self._set_video_switch(addr, value)
             return

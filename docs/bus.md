@@ -149,3 +149,25 @@ The `a2>` shell is a debugger, so its `poke` brackets the write: it clears RAMWR
 stores, and restores it, which is what the Monitor's own write command does. A
 debugger that silently dropped writes to a protected page, or left the machine
 unprotected for whatever ran next, would be wrong in both directions.
+### Autostart
+
+RESET held while any of `$C050-$C057` is written enters the autostart
+monitor, whose entry the firmware publishes at `$3F4`. That is a ][ feature and
+it needed three pieces, none of which existed: the switches, the vector, and the
+monitor itself.
+
+The bus cannot perform the jump -- the program counter belongs to the CPU -- so a
+soft-switch write under RESET raises a flag and the CPU consumes it at the top of
+`step()`, loading the PC from `$3F4` before the fetch. Checking it there rather
+than after an instruction is what puts the jump between instructions, as it is on
+hardware.
+
+`$3F4` is inside the write-protected `$0200-$03FF` page, so the boot program clears
+RAMWR before storing the vector. Without that the store is correctly discarded and
+the entry stays zero, which is a decent argument that the protection belongs where
+it is: the boot vector is not something software should scribble over by accident.
+
+The monitor at `$FA62` sets text mode page 1, clears the 960-byte text page to
+screen spaces, prints `AUTOSTART` over the serial console, and echoes typed
+characters. The hardware reset vector at `$FFFA` still enters the boot program at
+`$D000`; the two are deliberately different.

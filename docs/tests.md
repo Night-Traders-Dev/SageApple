@@ -1,6 +1,6 @@
 # Tests — `tests/`
 
-SageApple is validated by **24 SageLang suites: 1031 checks**, each
+SageApple is validated by **24 SageLang suites: 1046 checks**, each
 self-contained (`Results: N passed, 0 failed` + `ALL OK` on success),
 each runnable directly:
 
@@ -22,7 +22,7 @@ sage tests/boot/test_monitor.sage
 | `tests/boot/test_boot.sage` | 6 | power-on banner + prompt |
 | `tests/boot/test_uart.sage` | 8 | UART device RX/TX/status + echo-terminal |
 | `tests/boot/test_monitor.sage` | 16 | AVR monitor session |
-| `tests/boot/test_apple2_boot.sage` | 38 | replacement ROM boot, vectors, serial signature, high-bit text events, live rendering, active display, keyboard echo |
+| `tests/boot/test_apple2_boot.sage` | 53 | replacement ROM boot, vectors, serial signature, high-bit text events, live rendering, active display, keyboard echo |
 | `tests/bus/test_apple2_map.sage` | 233 | Apple II RAM/ROM map, banking, slot/expansion ROMs, keyboard latch/strobe, serial bridge, text/hi-res events, canonical video state and latches |
 | `tests/basic/test_basic.sage` | 49 | Applesoft arithmetic, strings, functions, control flow, errors |
 | `tests/display/test_spi.sage` | 9 | SPI framing, CS, loopback, counters |
@@ -38,7 +38,7 @@ sage tests/boot/test_monitor.sage
 | `tests/machine/test_os.sage` | 24 | the definition-of-done session |
 | `tests/dos/test_dos.sage` | 127 | Apple II DOS 3.3 command processor: verbs, error paths, and the traps that used to mis-parse |
 | `tests/machine/test_apple2.sage` | 39 | DOS 3.3 verbs, file types, monitor shell, CALL -151, buffers, EXEC, device errors |
-| **Total** | **1031** | |
+| **Total** | **1046** | |
 
 ## How suites assert
 
