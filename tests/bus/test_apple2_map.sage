@@ -491,6 +491,64 @@ rst.reset_key()
 check(rst.read8(0xC000) == 0x00, "RESET discards a waiting key, as the real keyboard does")
 check(rst.keyboard_queue == [], "RESET empties the queue")
 
+## RAM management, at the $C0E8-$C0EB addresses. These are original ][ switches;
+## on a IIe the same four are RDRAM, RDROM and two 40COL triggers, and picking
+## the ][ meanings is correct here only because the video map is ][-order. See
+## "Which Apple ][ this is" above.
+##
+## Scope, honestly: RAMWR guards the $0200-$03FF stack page, which is main RAM on
+## this machine. It does *not* guard $D000-$DFFF, because everything there is the
+## language card and the card has its own $C300-$C30B protection -- gating it
+## with RAMWR as well would stop a program using the card the way real programs
+## do. $C0E8/$C0E9 are consequently latches that are readable and settable but
+## change no access here, because there is no main RAM behind $D000 to select.
+let ram = apple2bus.Apple2Bus()
+
+check(ram.read8(0xC0E8) == 0x80, "RDROM is set at power-on, so reads come from ROM")
+check(ram.read8(0xC0E9) == 0x00, "RDRAM is clear at power-on")
+check(ram.read8(0xC0EA) == 0x80, "RAMRD is set at power-on, so RAM is readable")
+check(ram.read8(0xC0EB) == 0x80, "RAMWR is set at power-on, so RAM is protected")
+
+## A write to the stack page while protected is discarded, not queued, so a stray
+## store cannot land on top of the stack.
+ram.write8(0x0250, 0xBB)
+check(ram.ram[0x0250] == 0x00, "a write to $0250 while protected is discarded")
+ram.write8(0x03FF, 0xCC)
+check(ram.ram[0x03FF] == 0x00, "$03FF is the last protected byte")
+ram.write8(0x01FF, 0x11)
+check(ram.ram[0x01FF] == 0x11, "$01FF is below the protected page, so it is writable")
+ram.write8(0x0400, 0x22)
+check(ram.ram[0x0400] == 0x22, "and so is the text page at $0400")
+
+## Clearing RAMWR releases the whole protected page, which is what a program does
+## before using a buffer there.
+ram.write8(0xC0EB, 0x00)
+check(ram.read8(0xC0EB) == 0x00, "clearing RAMWR reads back clear")
+ram.write8(0x0250, 0xBB)
+check(ram.ram[0x0250] == 0xBB, "with RAMWR clear a write to the stack page lands")
+ram.write8(0xC0EB, 0x80)
+ram.write8(0x0250, 0xDD)
+check(ram.ram[0x0250] == 0xBB, "setting RAMWR again protects it")
+
+## The language card keeps its own protection, independent of RAMWR: a program
+## enables the card at $C300 without touching $C0EB, which is what real software
+## does and what this machine must not break.
+let card = apple2bus.Apple2Bus()
+card.write8(0xC302, 0x00)
+card.read8(0xC302)
+card.write8(0xD000, 0xB2)
+card.read8(0xC300)
+check(card.read8(0xD000) == 0xB2,
+      "the card is writable with only its own switches, RAMWR untouched")
+check(card.read8(0xC0EB) == 0x80, "and RAMWR was never involved")
+
+## Volatile, like the rest of the $C0xx page: a reset is a cold machine.
+let cold = apple2bus.Apple2Bus()
+cold.write8(0xC0EB, 0x00)
+cold.reset()
+check(cold.read8(0xC0EB) == 0x80, "reset returns RAM to protected")
+check(cold.read8(0xC0E8) == 0x80, "reset returns the machine to ROM mode")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:

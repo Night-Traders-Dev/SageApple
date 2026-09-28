@@ -61,6 +61,12 @@ class Apple2Bus:
         # switches these are read-modify-write: a read reports whether the switch
         # is set, and a write sets it and latches the value written, so software
         # that writes a mask and reads it back sees its own mask.
+        ## Original ][ RAM management, at the power-on state: reads come from
+        ## ROM and RAM is write-protected. Software clears RAMWR to get a
+        ## writable buffer, which is why this is a switch and not a constant.
+        self.read_rom = true
+        self.ram_read_enabled = true
+        self.ram_write_enabled = false
         self.annunciators = [false, false, false, false]
         self.annunciator_values = [0x00, 0x00, 0x00, 0x00]
         self.paddle_values = [64, 64, 64, 64, 64, 64, 64, 64]
@@ -97,6 +103,12 @@ class Apple2Bus:
         # switches these are read-modify-write: a read reports whether the switch
         # is set, and a write sets it and latches the value written, so software
         # that writes a mask and reads it back sees its own mask.
+        ## Original ][ RAM management, at the power-on state: reads come from
+        ## ROM and RAM is write-protected. Software clears RAMWR to get a
+        ## writable buffer, which is why this is a switch and not a constant.
+        self.read_rom = true
+        self.ram_read_enabled = true
+        self.ram_write_enabled = false
         self.annunciators = [false, false, false, false]
         self.annunciator_values = [0x00, 0x00, 0x00, 0x00]
         self.paddle_values = [64, 64, 64, 64, 64, 64, 64, 64]
@@ -321,6 +333,11 @@ class Apple2Bus:
         if addr >= 0xD000:
             if addr >= 0xF800:
                 return self.rom[addr - 0xD000]
+            ## Governed by the card alone. On a real ][ the language card's own
+            ## $C300-$C30B switches protect this range and RAMWR is not involved;
+            ## requiring both would stop a program using the card the way every
+            ## real program does. There is no main RAM behind $D000 on this
+            ## machine, so RAMRD has nothing here to disable.
             if self.language_card_read_ram:
                 return self.language_card_ram[self._language_card_ram_offset(addr)]
             return self.rom[addr - 0xD000]
@@ -353,6 +370,29 @@ class Apple2Bus:
         if addr >= 0xC058 and addr <= 0xC05B:
             let index = addr - 0xC058
             if self.annunciators[index]:
+                return 0x80
+            return 0x00
+        if addr >= 0xC0E8 and addr <= 0xC0EB:
+            ## Each reads the latch of the switch opposite it, because that is
+            ## how they are wired: RDROM set means reads come from ROM.
+            if addr == 0xC0E8:
+                if self.read_rom:
+                    return 0x80
+                return 0x00
+            if addr == 0xC0E9:
+                if self.read_rom:
+                    return 0x00
+                return 0x80
+            if addr == 0xC0EA:
+                if self.ram_read_enabled:
+                    return 0x80
+                return 0x00
+            if addr == 0xC0EB:
+                ## The latch is set when RAM is protected, so this reads the
+                ## inverse of write-enabled. Returning write-enabled here would
+                ## report a freshly powered machine as writable.
+                if self.ram_write_enabled:
+                    return 0x00
                 return 0x80
             return 0x00
         if addr == 0xC061:
@@ -391,10 +431,16 @@ class Apple2Bus:
         addr = addr & 0xFFFF
         value = value & 0xFF
         if addr < 0xC000:
+            ## $0200-$03FF is the stack area and is protected on a ][ alongside
+            ## $D000-$DFFF, which is why clearing RAMWR releases both at once.
+            if (addr >= 0x0200 and addr <= 0x03FF) and not self.ram_write_enabled:
+                return
             self.ram[addr] = value
             self._record_event(addr, value)
             return
         if addr >= 0xD000:
+            ## The card's own write-RAM switch, not RAMWR: this range is the
+            ## card on this machine. $F800 up is the ROM and is read-only.
             if addr < 0xF800 and self.language_card_write_ram:
                 self.language_card_ram[self._language_card_ram_offset(addr)] = value
             return
@@ -404,6 +450,19 @@ class Apple2Bus:
         if addr == 0xC030:
             self._toggle_speaker()
             return
+        if addr >= 0xC0E8 and addr <= 0xC0EB:
+            if addr == 0xC0E8:
+                self.read_rom = true
+                return
+            if addr == 0xC0E9:
+                self.read_rom = false
+                return
+            if addr == 0xC0EA:
+                self.ram_read_enabled = (value & 0x80) == 0
+                return
+            if addr == 0xC0EB:
+                self.ram_write_enabled = (value & 0x80) == 0
+                return
         if addr >= 0xC050 and addr <= 0xC057:
             self._apply_video_switch(addr)
             self._set_video_switch(addr, value)

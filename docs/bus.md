@@ -64,17 +64,44 @@ programs fit comfortably. See [docs/avr.md](avr.md).
 
 ## `Apple2Bus` — staged Apple II profile
 
+## Which Apple ][ this is
+
+**The video and memory-management switches follow the original Apple ][ (1977).**
+The text encoding follows the IIe. Those are not the same machine, and the
+difference is load-bearing, so it is written down rather than inferred.
+
+| subsystem | follows | evidence |
+|---|---|---|
+| video soft switches | original ][ | `$C054`/`$C055` are PAGE2 off/on and `$C056`/`$C057` are HIRES off/on. On a IIe those two pairs are LORES/PAGESIZE and PREWRITE/TEXTCLR |
+| text encoding | IIe | `apple2_text.sage` treats `$00-$3F` as inverse and `$40-$7F` as flash. The original ][ text page is plain ASCII with bit 7 as inverse |
+| main RAM | neither | 48 KiB at `$0000-$BFFF`. A ][ has 4 KiB; a IIe has 64 KiB |
+| language card | 16 KiB at `$D000-$F7FF` | an add-on rather than a ][- ][ or IIc, and standard on a IIe |
+| auxiliary memory | absent | there is none, so `$D000-$DFFF` can only be bank 1 |
+
+The practical consequence: **80-column text cannot be added to this machine as it
+stands.** It is a IIe feature, and reaching it means moving the video map to IIe
+semantics — putting PREWRITE and TEXTCLR at `$C055`/`$C056`, which are currently
+PAGE2-on and HIRES-off — plus writing the 80-column firmware ROM at `$C800`. That
+changes guest-visible behaviour and the byte-exact board transcripts with it, so
+it is a deliberate change of model rather than an addition.
+
+Anything that is the same on both revisions can be added freely. The keyboard work
+(arrow keys at `$08`/`$15`/`$0A`, RESET reported at `$C010` with bit 7 clear) is
+such a change and touches nothing else.
+
 ### Soft switches
 
 | range | function |
 |---|---|
 | `$C030` | speaker toggle |
-| `$C050-$C057` | text, mixed, page 2, page 1, hi-res |
+| `$C050-$C057` | text, mixed, page 2, page 1, hi-res — original ][ order, not IIe; see above |
 | `$C058-$C05B` | annunciators 0-3, read-modify-write |
 | `$C061` / `$C062` / `$C063` | OPEN APPLE / CLOSED APPLE / either button |
 | `$C064` / `$C065` | RTC seconds / minutes counters |
 | `$C070-$C077` | paddle ports 0-7, position with the button in bit 7 |
 | `$C000` / `$C010` | keyboard latch / strobe; RESET reads as `$00`, the one way to see it |
+| `$C0E8` / `$C0E9` | RDROM / RDRAM — latches; no main RAM behind `$D000` to select |
+| `$C0EA` / `$C0EB` | RAMRD / RAMWR — RAMWR guards the `$0200-$03FF` page |
 | `$C080` / `$C081` | serial bridge |
 | `$C100-$C7FF` | slot ROMs |
 | `$C300-$C30B` | language card |
@@ -108,3 +135,17 @@ The reduced AVR profile uses 1 KiB of guest RAM, a 512-byte partial language-car
 
 `tests/boot/*` and every device test drive the bus; the OS tests
 (`tests/machine/test_os.sage`) boot a full `AppleBus` system end-to-end.
+
+### Write protection
+
+`$0200-$03FF` is write-protected at power-on, which is what a ][ does, and RAMWR
+(`$C0EB`) releases it. The language card is *not* gated by RAMWR: it has its own
+`$C300-$C30B` protection, and requiring both would stop a program using the card
+the way every real program does. There is no main RAM behind `$D000` on this
+machine, so `$C0E8`/`$C0E9` are readable and settable latches that change no
+access — a property of the memory map, not a missing feature.
+
+The `a2>` shell is a debugger, so its `poke` brackets the write: it clears RAMWR,
+stores, and restores it, which is what the Monitor's own write command does. A
+debugger that silently dropped writes to a protected page, or left the machine
+unprotected for whatever ran next, would be wrong in both directions.

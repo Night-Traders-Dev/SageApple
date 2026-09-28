@@ -182,7 +182,16 @@ class Apple2Shell:
         if v == _A2_BAD or v == _A2_RANGE:
             self.say("POKE: value must be 1-4 hex digits ($00-$FF)\r\n")
             return _A2_BAD
-        self.machine.bus.write8(a, v)
+        ## Clear RAMWR around the store, the way the Monitor's own write command
+        ## does, then put it back. Without this a poke into $0200-$03FF or
+        ## $D000-$DFFF would be silently discarded, and leaving RAMWR clear would
+        ## change the machine's state for whatever ran next.
+        let bus = self.machine.bus
+        let saved = bus.ram_write_enabled
+        bus.write8(0xC0EB, 0x00)
+        bus.write8(a, v)
+        if not saved:
+            bus.write8(0xC0EB, 0x80)
         self.say("POKE $" + _a2_hex4(a) + " = " + _a2_hex2(v) + "\r\n")
         return v
 
