@@ -51,6 +51,10 @@ class Apple2Bus:
         self.keyboard_latch = 0x00
         self.keyboard_strobe = false
         self.keyboard_latch_valid = false
+        ## RESET is not a latch value on real hardware: it is the one case
+        ## where $C010 reads with bit 7 clear. Modelled separately so software
+        ## polling for it can tell it from a waiting key.
+        self.reset_pending = false
         self.speaker_on = false
         self.speaker_toggles = 0
         # Annunciators, paddle ports and the RTC counters. Like the video
@@ -83,6 +87,10 @@ class Apple2Bus:
         self.keyboard_latch = 0x00
         self.keyboard_strobe = false
         self.keyboard_latch_valid = false
+        ## RESET is not a latch value on real hardware: it is the one case
+        ## where $C010 reads with bit 7 clear. Modelled separately so software
+        ## polling for it can tell it from a waiting key.
+        self.reset_pending = false
         self.speaker_on = false
         self.speaker_toggles = 0
         # Annunciators, paddle ports and the RTC counters. Like the video
@@ -103,6 +111,45 @@ class Apple2Bus:
     proc _record_event(self, addr, value):
         if (addr >= 0x0400 and addr <= 0x0BFF) or (addr >= 0x2000 and addr <= 0x5FFF):
             push(self.events, [addr, value])
+
+    ## Keys that are not ASCII and so cannot arrive as a character. The encoder
+    ## sends everything in the ASCII range through `code | 0x80`, which is
+    ## already correct for punctuation, but these three sit outside it.
+    proc keyboard_named(self, name):
+        let lower = ""
+        var i = 0
+        while i < len(name):
+            let ch = name[i]
+            if ch >= "A" and ch <= "Z":
+                lower = lower + chr(ord(ch) + 32)
+            else:
+                lower = lower + ch
+            i = i + 1
+        if lower == "left":
+            self._queue_keyboard(0x08)
+            return true
+        if lower == "right":
+            self._queue_keyboard(0x15)
+            return true
+        if lower == "down":
+            self._queue_keyboard(0x0A)
+            return true
+        if lower == "esc" or lower == "escape":
+            self._queue_keyboard(0x36)
+            return true
+        if lower == "reset":
+            return self.reset_key()
+        return false
+
+    ## Press RESET. It discards any waiting key, because that is what the real
+    ## keyboard does: RESET aborts the latch rather than queueing behind it.
+    proc reset_key(self):
+        self.reset_pending = true
+        self.keyboard_queue = []
+        self.keyboard_latch = 0x00
+        self.keyboard_strobe = false
+        self.keyboard_latch_valid = false
+        return true
 
     proc _encode_keyboard_char(self, value):
         var code = ord(value)
@@ -188,6 +235,10 @@ class Apple2Bus:
         return self.keyboard_input(value)
 
     proc _read_keyboard_strobe(self):
+        ## Bit 7 clear means RESET, which is the only way a guest can see it.
+        if self.reset_pending:
+            self.reset_pending = false
+            return 0x00
         if self.keyboard_strobe == true:
             self.keyboard_strobe = false
             self.keyboard_latch = self.keyboard_latch & 0x7F
@@ -274,6 +325,11 @@ class Apple2Bus:
                 return self.language_card_ram[self._language_card_ram_offset(addr)]
             return self.rom[addr - 0xD000]
         if addr == 0xC000:
+            ## A reset reads as $00 at the latch too, so software that polls the
+            ## latch directly rather than $C010 still sees it.
+            if self.reset_pending:
+                self.reset_pending = false
+                return 0x00
             if self.keyboard_strobe == false and self.keyboard_latch_valid == true:
                 let value = self.keyboard_latch & 0x7F
                 self.keyboard_latch_valid = false

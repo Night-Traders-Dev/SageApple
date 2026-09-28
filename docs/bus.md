@@ -68,13 +68,13 @@ programs fit comfortably. See [docs/avr.md](avr.md).
 
 | range | function |
 |---|---|
-| `$C000` / `$C010` | keyboard latch / strobe |
 | `$C030` | speaker toggle |
 | `$C050-$C057` | text, mixed, page 2, page 1, hi-res |
 | `$C058-$C05B` | annunciators 0-3, read-modify-write |
 | `$C061` / `$C062` / `$C063` | OPEN APPLE / CLOSED APPLE / either button |
 | `$C064` / `$C065` | RTC seconds / minutes counters |
 | `$C070-$C077` | paddle ports 0-7, position with the button in bit 7 |
+| `$C000` / `$C010` | keyboard latch / strobe; RESET reads as `$00`, the one way to see it |
 | `$C080` / `$C081` | serial bridge |
 | `$C100-$C7FF` | slot ROMs |
 | `$C300-$C30B` | language card |

@@ -425,6 +425,72 @@ sw2.reset()
 check(sw2.read8(0xC058) == 0x00, "reset clears the annunciators")
 check(sw2.read8(0xC061) == 0x00, "reset clears the paddle buttons")
 
+## Arrow keys and RESET. The encoder sent the ASCII range through `code | 0x80`,
+## which is right for punctuation, but the arrows are not in ASCII -- left is $08,
+## right is $15, down is $0A -- so there was no way to name them.
+let kb = apple2bus.Apple2Bus()
+proc press(b, code):
+    b._queue_keyboard(code)
+    b.read8(0xC010)
+    return b.read8(0xC000)
+
+check(press(kb, 0x08) == 0x08, "left arrow is $08")
+check(press(kb, 0x15) == 0x15, "right arrow is $15")
+check(press(kb, 0x0A) == 0x0A, "down arrow is $0A")
+check(press(kb, 0x36) == 0x36, "escape is $36")
+
+check(kb.keyboard_named("left"), "keyboard_named accepts left")
+check(kb.keyboard_named("RIGHT"), "keyboard_named is case-insensitive")
+check(kb.keyboard_named("down"), "keyboard_named accepts down")
+check(kb.keyboard_named("esc"), "keyboard_named accepts esc")
+check(kb.keyboard_named("nonsense") == false, "an unknown name is refused, not queued")
+
+## Keys in sequence. Nothing else pinned that a run of keys drains in order.
+let seq = apple2bus.Apple2Bus()
+check(press(seq, 0xC1) == 0x41, "first key arrives")
+check(press(seq, 0xC2) == 0x42, "second key arrives rather than stalling")
+check(press(seq, 0xC3) == 0x43, "third key arrives")
+
+## The interleaving that looks like a stall but is not: poll $C010, let a key
+## arrive, then read $C000. Promotion happens on the $C000 read rather than on
+## the queue, so the latch is never left occupied by a key nobody can reach.
+let race = apple2bus.Apple2Bus()
+race._queue_keyboard(0xC1)
+race.read8(0xC010)
+race._queue_keyboard(0xC2)
+check(race.read8(0xC000) == 0x41, "the latched key is still the one read first")
+check(race.read8(0xC010) == 0x80, "the queued key raises the strobe")
+check(race.read8(0xC000) == 0x42, "the key that arrived mid-sequence is not lost")
+race._queue_keyboard(0xC3)
+check(race.read8(0xC010) == 0x80, "and the queue keeps draining afterwards")
+check(race.read8(0xC000) == 0x43, "third key still arrives")
+
+## A burst, because one interleaving passing is not the same as a sustained
+## stream working. Values stay inside 0x41-0x5A so nothing wraps.
+let burst = apple2bus.Apple2Bus()
+var burst_bad = 0
+var b_i = 0
+while b_i < 40:
+    let code = 0x41 + b_i
+    if press(burst, code | 0x80) != code:
+        burst_bad = burst_bad + 1
+    b_i = b_i + 1
+check(burst_bad == 0, "40 keys in a row all arrive in order")
+
+## RESET. Not a key in the latch on real hardware: it is the one case where $C010
+## reads with bit 7 clear, and that is how software tells it from a waiting key.
+let rst = apple2bus.Apple2Bus()
+rst._queue_keyboard(0xC1)
+check(rst.reset_key(), "reset_key reports success")
+check(rst.read8(0xC010) == 0x00, "RESET reads at $C010 with bit 7 clear")
+check(rst.read8(0xC010) == 0x00, "RESET is consumed by that read")
+rst.reset_key()
+check(rst.read8(0xC000) == 0x00, "RESET also reads at the latch, so either address sees it")
+rst._queue_keyboard(0xC1)
+rst.reset_key()
+check(rst.read8(0xC000) == 0x00, "RESET discards a waiting key, as the real keyboard does")
+check(rst.keyboard_queue == [], "RESET empties the queue")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:
