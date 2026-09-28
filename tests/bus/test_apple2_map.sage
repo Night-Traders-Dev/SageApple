@@ -359,6 +359,72 @@ check(b.events[3] == [0x5FFF, 0x45], "second hi-res event is ordered")
 b.reset()
 check(len(b.events) == 0 and b.speaker_state() == false, "reset clears volatile state")
 
+## Soft switches the IIe has and the bus previously did not decode at all.
+## A program polling a paddle got 0x00 back and could not tell "nothing pressed"
+## from "no such hardware", so these are pinned here. Each group below leaves the
+## bus in a known state before the next one starts.
+let sw = apple2bus.Apple2Bus()
+
+## Annunciators: read-modify-write, and independent of one another.
+check(sw.read8(0xC058) == 0x00, "annunciator 0 reads off until written")
+check(sw.read8(0xC05B) == 0x00, "annunciator 3 reads off until written")
+sw.write8(0xC058, 0x3F)
+check(sw.read8(0xC058) == 0x80, "annunciator 0 reports set after a write")
+check(sw.read8(0xC059) == 0x00, "writing one annunciator does not set the next")
+sw.write8(0xC05B, 0x01)
+check(sw.read8(0xC05B) == 0x80, "annunciator 3 is independently settable")
+check(sw.annunciator_values[0] == 0x3F, "annunciator latches the value written")
+
+## Paddles. Bit 7 is the button, so a centred pot is 64 and not 128, and a
+## triggered read is position OR 0x80 rather than 0x80 alone.
+check(sw.read8(0xC070) == 0x40, "paddle 0 rests centred with the button clear")
+check(sw.read8(0xC077) == 0x40, "paddle 7 rests centred too")
+sw.paddle_input(0, 0x10)
+check(sw.read8(0xC070) == 0x10, "paddle 0 reports its position")
+sw.paddle_input(7, 0x70)
+check(sw.read8(0xC077) == 0x70, "paddle 7 reports its position")
+sw.paddle_input(0, 0x90)
+check(sw.read8(0xC070) == 0x10, "paddle input is masked to seven bits")
+sw.write8(0xC070, 0x00)
+check(sw.read8(0xC070) == 0x90, "a triggered paddle ORs the button onto its position")
+sw.write8(0xC070, 0x01)
+check(sw.read8(0xC070) == 0x10, "releasing the trigger clears the button bit")
+sw.paddle_button(0, true)
+check(sw.read8(0xC070) == 0x90, "a held button shows regardless of the trigger")
+sw.paddle_button(0, false)
+check(sw.read8(0xC070) == 0x10, "releasing the button clears bit 7 again")
+
+## OPEN APPLE and CLOSED APPLE, starting from nothing held.
+check(sw.read8(0xC061) == 0x00, "OPEN APPLE clear with nothing pressed")
+check(sw.read8(0xC062) == 0x00, "CLOSED APPLE clear with nothing pressed")
+check(sw.read8(0xC063) == 0x00, "$C063 clear with nothing pressed")
+sw.paddle_button(0, true)
+check(sw.read8(0xC061) == 0x80, "OPEN APPLE follows paddle 0")
+check(sw.read8(0xC062) == 0x00, "CLOSED APPLE ignores paddle 0")
+check(sw.read8(0xC063) == 0x80, "$C063 reports either button")
+sw.paddle_button(0, false)
+sw.paddle_button(1, true)
+check(sw.read8(0xC061) == 0x00, "OPEN APPLE clear again")
+check(sw.read8(0xC062) == 0x80, "CLOSED APPLE follows paddle 1")
+check(sw.read8(0xC063) == 0x80, "$C063 still reports the other button")
+
+## The RTC counters. Minutes is the interesting one: / is float division in Sage,
+## so an untruncated quotient reads 2.48 and a guest comparing against 2 misses.
+let secs = sw.read8(0xC064)
+let mins = sw.read8(0xC065)
+check(secs >= 0 and secs <= 59, "RTC seconds counter is in range")
+check(mins >= 0 and mins <= 59, "RTC minutes counter is in range")
+check(mins == int(mins), "RTC minutes is an integer, not a float quotient")
+
+## They are volatile like the rest of the $C0xx page.
+let sw2 = apple2bus.Apple2Bus()
+sw2.write8(0xC058, 0xFF)
+check(sw2.read8(0xC058) == 0x80, "annunciator sets on a fresh bus")
+sw2.paddle_button(0, true)
+sw2.reset()
+check(sw2.read8(0xC058) == 0x00, "reset clears the annunciators")
+check(sw2.read8(0xC061) == 0x00, "reset clears the paddle buttons")
+
 print("")
 print("Results:", passes, "passed,", failures, "failed")
 if failures == 0:

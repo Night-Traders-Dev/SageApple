@@ -53,6 +53,15 @@ class Apple2Bus:
         self.keyboard_latch_valid = false
         self.speaker_on = false
         self.speaker_toggles = 0
+        # Annunciators, paddle ports and the RTC counters. Like the video
+        # switches these are read-modify-write: a read reports whether the switch
+        # is set, and a write sets it and latches the value written, so software
+        # that writes a mask and reads it back sees its own mask.
+        self.annunciators = [false, false, false, false]
+        self.annunciator_values = [0x00, 0x00, 0x00, 0x00]
+        self.paddle_values = [64, 64, 64, 64, 64, 64, 64, 64]
+        self.paddle_buttons = [false, false, false, false]
+        self.paddle_strobes = [false, false, false, false]
 
     proc _reset_language_card_state(self):
         self.language_card_bank = 2
@@ -76,6 +85,15 @@ class Apple2Bus:
         self.keyboard_latch_valid = false
         self.speaker_on = false
         self.speaker_toggles = 0
+        # Annunciators, paddle ports and the RTC counters. Like the video
+        # switches these are read-modify-write: a read reports whether the switch
+        # is set, and a write sets it and latches the value written, so software
+        # that writes a mask and reads it back sees its own mask.
+        self.annunciators = [false, false, false, false]
+        self.annunciator_values = [0x00, 0x00, 0x00, 0x00]
+        self.paddle_values = [64, 64, 64, 64, 64, 64, 64, 64]
+        self.paddle_buttons = [false, false, false, false]
+        self.paddle_strobes = [false, false, false, false]
         self.uart.rx = []
         self.uart.rx_head = 0
         self.uart.tx = []
@@ -110,6 +128,44 @@ class Apple2Bus:
         push(self.keyboard_queue, value & 0xFF)
         if self.keyboard_strobe == false and self.keyboard_latch_valid == false:
             self._promote_keyboard()
+
+    ## Paddle input. The ports are 0-255 and, as on real hardware, bit 7 of a
+    ## paddle read is the button rather than part of the position, so 0-127 is
+    ## the usable range of a centred pot.
+    proc paddle_input(self, index, value):
+        if index >= 0 and index < 8:
+            self.paddle_values[index] = value & 0x7F
+
+    proc paddle_button(self, index, down):
+        if index >= 0 and index < 4:
+            self.paddle_buttons[index] = down
+
+    ## The RTC is free-running from the host clock, which is what a real one does
+    ## with a battery fitted. Reads do not advance it: the counters here are
+    ## wall-clock derived, so advancing on read would double-count.
+    proc _rtc_seconds(self):
+        return int(clock()) % 60
+
+    proc _rtc_minutes(self):
+        # / is float division in Sage, so this has to be truncated: without it
+        # the counter reads 2.48 minutes rather than 2, and a guest comparing it
+        # against 2 sees a miss.
+        return int(clock() / 60) % 60
+
+    ## A paddle read reports the position, and bit 7 as the button -- but only
+    ## while the trigger is still standing, which is cleared by the read. That is
+    ## what lets software sample once per frame and see a press for one frame.
+    proc _read_paddle(self, index):
+        let value = self.paddle_values[index]
+        if self.paddle_buttons[index] or self.paddle_strobes[index]:
+            return value | 0x80
+        return value
+
+    proc _write_paddle(self, index, value):
+        if (value & 0x01) == 0:
+            self.paddle_strobes[index] = true
+        else:
+            self.paddle_strobes[index] = false
 
     proc keyboard_input(self, value):
         if type(value) == "string":
@@ -238,6 +294,29 @@ class Apple2Bus:
             if self.video_switches[index]:
                 return 0x80
             return 0x00
+        if addr >= 0xC058 and addr <= 0xC05B:
+            let index = addr - 0xC058
+            if self.annunciators[index]:
+                return 0x80
+            return 0x00
+        if addr == 0xC061:
+            if self.paddle_buttons[0]:
+                return 0x80
+            return 0x00
+        if addr == 0xC062:
+            if self.paddle_buttons[1]:
+                return 0x80
+            return 0x00
+        if addr == 0xC063:
+            if self.paddle_buttons[0] or self.paddle_buttons[1]:
+                return 0x80
+            return 0x00
+        if addr == 0xC064:
+            return self._rtc_seconds()
+        if addr == 0xC065:
+            return self._rtc_minutes()
+        if addr >= 0xC070 and addr <= 0xC077:
+            return self._read_paddle(addr - 0xC070)
         if addr == 0xC081:
             if self.uart.rx_ready() == 1:
                 return 0x80 | self.uart.rx_read()
@@ -272,6 +351,14 @@ class Apple2Bus:
         if addr >= 0xC050 and addr <= 0xC057:
             self._apply_video_switch(addr)
             self._set_video_switch(addr, value)
+            return
+        if addr >= 0xC058 and addr <= 0xC05B:
+            let index = addr - 0xC058
+            self.annunciators[index] = true
+            self.annunciator_values[index] = value & 0xFF
+            return
+        if addr >= 0xC070 and addr <= 0xC077:
+            self._write_paddle(addr - 0xC070, value)
             return
         if addr == 0xC080:
             self.uart.tx_write(value)

@@ -64,6 +64,38 @@ programs fit comfortably. See [docs/avr.md](avr.md).
 
 ## `Apple2Bus` — staged Apple II profile
 
+### Soft switches
+
+| range | function |
+|---|---|
+| `$C000` / `$C010` | keyboard latch / strobe |
+| `$C030` | speaker toggle |
+| `$C050-$C057` | text, mixed, page 2, page 1, hi-res |
+| `$C058-$C05B` | annunciators 0-3, read-modify-write |
+| `$C061` / `$C062` / `$C063` | OPEN APPLE / CLOSED APPLE / either button |
+| `$C064` / `$C065` | RTC seconds / minutes counters |
+| `$C070-$C077` | paddle ports 0-7, position with the button in bit 7 |
+| `$C080` / `$C081` | serial bridge |
+| `$C100-$C7FF` | slot ROMs |
+| `$C300-$C30B` | language card |
+| `$C800+` | expansion ROM |
+
+The annunciators and the paddle trigger are written as well as read, since a
+switch that can be polled but never set is indistinguishable from absent
+hardware. Paddles are a pot of 0-255 with bit 7 given over to the button, so they
+rest at 64 and `paddle_input()` masks to seven bits. A paddle read returns the
+position OR'd with the button while the trigger is standing, which is what lets
+software sample once per frame and see a press for exactly one frame. The RTC is
+derived from the host clock rather than free-running from read to read.
+
+**Not decoded, and why.** `$C032`/`$C033` vertical blanking has no cycle-level
+video timing to hang off. `$C0E0-$C0EF` 80-column text needs auxiliary memory,
+and this is a 40-column machine with no aux RAM behind `$C000`. `$C0EC-$C0EF` and
+a `$C600` boot ROM would be the Disk ][ controller: DOS 3.3 here is a host-side
+shim over flash storage (`sageapple/dos.sage`), not a guest slot ROM talking to a
+drive. Language-card banking falls back to the flat main ROM in ROM mode rather
+than modelling the card's ROM/RAM select.
+
 `apple2bus.sage` is isolated from the legacy `AppleBus`. It provides a 48 KiB host RAM view at `$0000-$BFFF`, a strict 12 KiB read-only ROM at `$D000-$FFFF`, Apple keyboard/speaker/video soft switches, and a `$C080/$C081` serial bridge. The keyboard path keeps a stable encoded latch at `$C000`; `$C010` reads and writes acknowledge the pending key, promote queued input in order, and clear the latch high bit when the queue is empty. String `keyboard_input()` values encode `A-Z` (case-normalized), `0-9`, space, CR, and LF; numeric and array values are already encoded keycodes and pass through unchanged. The host UART bridge remains independent of the keyboard latch. Text/lo-res and hi-res writes are recorded as ordered events rather than stored in a framebuffer.
 
 The canonical video state is `text`, `mixed`, `page2`, and `hires`, initialized and reset to `[true, false, false, false]`. Reads and writes of `$C050-$C057` apply the corresponding soft switch; written values are ignored by the canonical state. Reads update that state while retaining the legacy address-latch return, and writes continue to update `video_switches[8]`, `video_values[8]`, and `video_events`. `video_snapshot()` returns the four canonical fields, `video_mode()` returns `text`, `lores`, or `hires`, and `video_page()` returns 1 or 2. `reset()` clears volatile state, while `clear_events()` only clears logs. `sageapple/apple2_text.sage`, `sageapple/apple2_lores.sage`, and `sageapple/apple2_hires.sage` remain explicit host-only read-only projections. The lo-res view follows the text-page interleave and maps even and odd horizontal cells to the high and low nibbles, producing 80 color cells per 40x24 row from an exact 16-entry palette. The HGR view maps seven contiguous pixels per byte (bits 0–6) and deliberately ignores the palette bit 7. `sageapple/apple2_display.sage` composes those views from the canonical state, selecting the active page and reserving the bottom four rows for text in mixed mode. `sageapple/apple2_shell.sage` exposes that composition through a host `a2>` REPL with state, soft-switch, memory, and key commands. None adds a framebuffer, a RAM copy, event mutation, or bus writes. `sageapple/apple2_machine.sage` forwards the page views, active display, and video state API, and `sageapple/apple2_rom.sage` builds the replacement ROM.
