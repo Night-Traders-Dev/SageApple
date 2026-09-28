@@ -23,6 +23,12 @@ class Apple2Machine:
         self.booted = true
         return 0
 
+    ## Fit a language card, if the machine is to have one. Separate from load_rom
+    ## because a card is a different physical part from the firmware ROM: one is
+    ## soldered on, the other is a plug-in that may not be there at all.
+    proc load_card_rom(self, image):
+        return self.bus.load_card_rom(image)
+
     proc reset(self):
         self.bus.reset()
         self.cpu.reset()

@@ -2,11 +2,16 @@ import devices.uart
 
 ## The Apple II serial bridge is UART TX on $C080 and UART RX on $C081.
 ##
-## The language-card model has 16 KiB of physical RAM: two 4 KiB $D000
-## banks and a shared 8 KiB region at $E000-$F7FF. This byte-bus model
-## tracks prewrite across explicit odd reads; it cannot expose a 6502 read
-## phase hidden inside write8. ROM mode uses the flat main ROM as a
-## deterministic fallback rather than modeling language-card ROM banking.
+## The language-card model has 16 KiB of physical RAM -- two 4 KiB $D000
+## banks and a shared 8 KiB region at $E000-$F7FF -- plus its own 12 KiB ROM over
+## the same range. This byte-bus model tracks prewrite across explicit odd reads;
+## it cannot expose a 6502 read phase hidden inside write8.
+##
+## The firmware ROM is 12 KiB at $D000-$FFFF, as on a real ][, so with no card
+## fitted $D000 answers from firmware. A card fitted in read-ROM mode overrides the
+## low 12 KiB ($D000-$F7FF) with its own ROM; $F800-$FFFF is always firmware, which
+## is why the autostart monitor at $FA62 is unaffected by whether a card is
+## present. The card does not replace the firmware, it shadows it.
 class Apple2Bus:
     proc init(self):
         self.ram = []
@@ -24,7 +29,17 @@ class Apple2Bus:
         while lc_index < 0x4000:
             push(self.language_card_ram, 0x00)
             lc_index = lc_index + 1
-        self.language_card_flat_rom_fallback = true
+        ## The card's own ROM for $D000-$F7FF, from
+        ## sageapple/apple2_rom.sage build_card(). All zero and
+        ## language_card_rom_present false until a card is fitted, so an unfitted
+        ## slot leaves the firmware showing through, which is what a ][ with
+        ## nothing in the card slot does.
+        self.language_card_rom = []
+        var lci = 0
+        while lci < 0x3000:
+            push(self.language_card_rom, 0x00)
+            lci = lci + 1
+        self.language_card_rom_present = false
         self._reset_language_card_state()
         self.slot_roms = []
         var slot = 0
@@ -348,6 +363,10 @@ class Apple2Bus:
             ## machine, so RAMRD has nothing here to disable.
             if self.language_card_read_ram:
                 return self.language_card_ram[self._language_card_ram_offset(addr)]
+            ## Read-ROM: a fitted card shadows the firmware over $D000-$F7FF. With
+            ## no card, or with the card not in read-ROM, this is the firmware.
+            if self.language_card_rom_present:
+                return self.language_card_rom[addr - 0xD000]
             return self.rom[addr - 0xD000]
         if addr == 0xC000:
             ## A reset reads as $00 at the latch too, so software that polls the
@@ -511,6 +530,17 @@ class Apple2Bus:
             self.rom[i] = image[i] & 0xFF
             i = i + 1
         return 0
+
+    ## Fit a language card. 12 KiB, covering $D000-$F7FF.
+    proc load_card_rom(self, image):
+        if type(image) != "array" or len(image) != 0x3000:
+            raise "Apple2Bus language card ROM image must be exactly 12 KiB"
+        var i = 0
+        while i < 0x3000:
+            self.language_card_rom[i] = image[i] & 0xFF
+            i = i + 1
+        self.language_card_rom_present = true
+        return true
 
     proc load_slot_rom(self, slot, image):
         if type(slot) != "number" or slot != int(slot):

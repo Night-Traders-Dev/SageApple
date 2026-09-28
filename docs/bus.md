@@ -171,3 +171,16 @@ The monitor at `$FA62` sets text mode page 1, clears the 960-byte text page to
 screen spaces, prints `AUTOSTART` over the serial console, and echoes typed
 characters. The hardware reset vector at `$FFFA` still enters the boot program at
 `$D000`; the two are deliberately different.
+### The language card's ROM
+
+A card carries its own 12 KiB ROM over `$D000-$F7FF`. Fitted and in read-ROM
+mode (`$C302`/`$C303`) it shadows the firmware there; `$F800-$FFFF` is always
+firmware, so the autostart monitor at `$FA62` behaves the same whether a card is
+present or not. With no card fitted, `$D000` answers from the firmware, which is
+a 12 KiB ROM at `$D000-$FFFF` on a real ][.
+
+The card does not replace the firmware, it shadows it. I had that backwards first
+and called the firmware fallback a fiction; eight existing tests were right to
+object. The card ROM is built by `apple2_rom.sage build_card()` from its own
+assembled signature program, and fitted with `load_card_rom()` -- separate from
+`load_rom()` because a card is a plug-in and the firmware is soldered on.

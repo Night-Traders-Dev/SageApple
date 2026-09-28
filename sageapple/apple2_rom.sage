@@ -1,5 +1,46 @@
 import compiler.asm6502
 
+## The language card's own 12 KiB ROM, covering $D000-$F7FF. The main ROM only
+## occupies $F800-$FFFF, so a card in ROM mode has to supply this range itself
+## rather than borrowing the firmware.
+##
+## What lives in it is a signature program at $D000, which is the honest minimum:
+## it identifies the card, and the rest is zero rather than pretending to be
+## something. A guest can therefore tell a card from no card, which is the whole
+## point of switching the card to read-ROM.
+proc build_card():
+    let card_source = [
+        "org $D000",
+        "; --- language card signature ---",
+        "    LDA #$A2",
+        "    STA $C080",
+        "    LDA #$4C",
+        "    STA $C080",
+        "    LDA #$43",
+        "    STA $C080",
+        "    LDA #$0D",
+        "    STA $C080",
+        "    LDA #$0A",
+        "    STA $C080",
+        "; --- the card is 4 KiB at $D000 and 8 KiB at $E000 ---",
+        "    LDA #$01",
+        "    STA $C300",
+        "idle:",
+        "    JMP idle",
+    ]
+    let code = asm6502.asm(card_source, 0xD000)[0]
+    var card_rom = []
+    var i = 0
+    while i < 0x3000:
+        push(card_rom, 0x00)
+        i = i + 1
+    i = 0
+    while i < len(code) and i < 0x3000:
+        card_rom[i] = code[i] & 0xFF
+        i = i + 1
+    return card_rom
+
+
 proc build():
     let source = [
         "org $D000",

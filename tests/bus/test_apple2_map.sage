@@ -77,7 +77,9 @@ check(b.read8(0xD000) == 0x11, "invalid ROM loads do not mutate ROM")
 let compat = apple2bus.Apple2Bus()
 check(compat.load_rom(rom) == 0, "compatibility bus loads the main ROM")
 check(len(compat.language_card_ram) == 0x4000, "16 KiB language-card RAM is allocated")
-check(compat.language_card_flat_rom_fallback, "flat ROM fallback is explicit")
+check(compat.language_card_rom_present == false, "no card is fitted on a bare bus")
+check(compat.read8(0xD000) == 0x11,
+      "with no card fitted, $D000 still answers from the 12 KiB firmware ROM")
 check(compat.language_card_state() == [2, false, true, false], "language card resets to ROM-read bank 2")
 compat.write8(0xD000, 0x3C)
 check(compat.read8(0xD000) == 0x11, "ROM mode hides write-enabled language-card RAM")
@@ -548,6 +550,56 @@ cold.write8(0xC0EB, 0x00)
 cold.reset()
 check(cold.read8(0xC0EB) == 0x80, "reset returns RAM to protected")
 check(cold.read8(0xC0E8) == 0x80, "reset returns the machine to ROM mode")
+
+## The language card's own ROM. A card in read-ROM mode shadows the firmware over
+## $D000-$F7FF, which is what a real card does; $F800-$FFFF stays firmware.
+import sageapple.apple2_rom
+let card_image = apple2_rom.build_card()
+check(len(card_image) == 0x3000, "the language card ROM is 12 KiB, covering $D000-$F7FF")
+
+let fitted = apple2bus.Apple2Bus()
+fitted.load_rom(rom)
+check(fitted.read8(0xD000) == 0x11, "before a card is fitted, $D000 is the firmware ROM")
+
+check(fitted.load_card_rom(card_image), "a card can be fitted")
+check(fitted.language_card_rom_present, "and the bus knows it is there")
+
+## Read-ROM is $C302/$C303; $C300/$C301 are read-RAM. Reaching for $C300 here
+## twice was the mistake that made this look broken when it was not.
+fitted.read8(0xC302)
+check(fitted.read8(0xD000) == card_image[0], "ROM mode reads the card's own ROM at $D000")
+check(fitted.read8(0xD050) == card_image[0x50], "and at other addresses in the card range")
+
+## The card ROM and the card RAM are different things.
+fitted.read8(0xC301)
+fitted.read8(0xC301)
+fitted.write8(0xD000, 0x77)
+check(fitted.read8(0xD000) == 0x77, "read-RAM shows what was written")
+fitted.read8(0xC302)
+check(fitted.read8(0xD000) == card_image[0], "read-ROM shows the card ROM, not the RAM")
+
+## The write-protect is a two-step protocol, which is existing behaviour the card
+## ROM did not change but which is worth pinning while we are here.
+let wp = apple2bus.Apple2Bus()
+wp.load_card_rom(card_image)
+wp.read8(0xC301)
+wp.write8(0xD000, 0x33)
+check(wp.read8(0xD000) == 0x00, "one $C301 only arms prewrite, so the write is refused")
+wp.read8(0xC301)
+wp.write8(0xD000, 0x33)
+check(wp.read8(0xD000) == 0x33, "a second $C301 enables read+write RAM")
+
+## The shadowing boundary. The card covers $D000-$F7FF only, so $F800 keeps
+## answering from the firmware even with a card fitted in read-ROM mode -- which is
+## why the autostart monitor at $FA62 is unaffected by whether a card is present.
+## The real reset vector is checked in the boot suite; this fixture is synthetic.
+fitted.read8(0xC302)
+check(fitted.read8(0xD000) == card_image[0],
+      "the card still shadows the firmware below $F800")
+check(fitted.read8(0xF800) == rom[0x2800],
+      "$F800 is answered from the firmware, not the card")
+check(fitted.read8(0xFFFF) == rom[0x2FFF],
+      "and the same at the top of the address space")
 
 print("")
 print("Results:", passes, "passed,", failures, "failed")
